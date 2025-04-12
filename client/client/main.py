@@ -45,7 +45,7 @@ def save_config(config):
         print(f"Warning: Could not save config file at {config_path}: {e}", file=sys.stderr)
 
 class EmotionMonitorService:
-    def __init__(self, display_window=False, api_url="http://localhost:8000/emotions", api_key=None):
+    def __init__(self, display_window=False, api_url="http://localhost:8000/emotions/", api_key=None):
         if not api_key:
             raise ValueError("API key is required to proceed.")
 
