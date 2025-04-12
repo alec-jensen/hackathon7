@@ -1,0 +1,34 @@
+---
+const { slot } = Astro.props;
+---
+
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Side by Side Layout</title>
+    <style>
+      .container {
+        display: flex;
+        flex-direction: row;
+        gap: 1rem;
+        padding: 1rem;
+      }
+
+      .left, .right {
+        flex: 1;
+        border: 1px solid #ccc;
+        padding: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="left">
+        <slot name="left" />
+      </div>
+      <div class="right">
+        <slot name="right" />
+      </div>
+    </div>
+  </body>
+</html>

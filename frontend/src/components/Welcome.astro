@@ -1,7 +1,7 @@
 ---
 import "../styles/style.css";
 import { Image } from "astro:assets";
-import logo from "../assets/chorus.svg";
+import Logos from "../components/logos.astro";
 ---
 
 <div id="container">
@@ -10,11 +10,9 @@ import logo from "../assets/chorus.svg";
             <a href="https://astro.build"></a>
         </section>
     </main>
-    <Image src={logo} alt="chorus" />
-    <h1>
-        To get started, open the <code><pre>src/pages</pre></code> directory in your
-        project.
-    </h1>
+    <div>
+        <Logos></Logos>
+    </div>
     <section id="links">
         <a href="https://github.com/alec-jensen/hackathon7"
             >Checkout our Github
@@ -43,9 +41,8 @@ import logo from "../assets/chorus.svg";
 
 <style>
     #container {
-        font-family:
-            Inter, Roboto, "Helvetica Neue", "Arial Nova", "Nimbus Sans", Arial,
-            sans-serif;
+        font-family: Inter, Roboto, "Helvetica Neue", "Arial Nova",
+            "Nimbus Sans", Arial, sans-serif;
         height: 100%;
     }
 
@@ -87,9 +84,8 @@ import logo from "../assets/chorus.svg";
     }
 
     pre {
-        font-family:
-            ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas,
-            "DejaVu Sans Mono", monospace;
+        font-family: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo,
+            Consolas, "DejaVu Sans Mono", monospace;
         font-weight: normal;
         background: linear-gradient(14deg, #d83333 0%, #f041ff 100%);
         -webkit-background-clip: text;
