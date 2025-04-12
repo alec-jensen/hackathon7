@@ -12,6 +12,11 @@ class CreateUserRequest(BaseModel):
     password: str
     email: Optional[str] = None
 
+class UpdateUserRequest(BaseModel):
+    username: Optional[str] = None
+    email: Optional[str] = None
+    # Note: Password updates might require a separate endpoint or current password verification
+
 router = APIRouter()
 
 @router.post("/")
@@ -45,6 +50,50 @@ async def create_user(data: CreateUserRequest):
 @router.get("/me", response_model=User)
 async def get_user_details(current_user: User = Depends(get_current_user)):
     return current_user
+
+@router.patch("/me", response_model=User)
+async def update_user_details(
+    data: UpdateUserRequest, current_user: User = Depends(get_current_user)
+):
+    update_data = {}
+    if data.username is not None:
+        # Check if the new username is already taken by another user
+        existing_user = await users_collection.find_one(
+            {"username": data.username, "user_id": {"$ne": current_user.user_id}}
+        )
+        if existing_user:
+            raise HTTPException(status_code=400, detail="Username already taken")
+        update_data["username"] = data.username
+
+    if data.email is not None:
+        # Optional: Add email format validation if needed
+        update_data["email"] = data.email
+
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No update data provided")
+
+    result = await users_collection.update_one(
+        {"user_id": current_user.user_id}, {"$set": update_data}
+    )
+
+    if result.modified_count == 1:
+        updated_user_data = await users_collection.find_one({"user_id": current_user.user_id})
+        if not updated_user_data:
+            raise HTTPException(status_code=404, detail="User not found after update")
+        # Ensure the returned user data conforms to the User model (excluding password)
+        return User(
+            user_id=updated_user_data.get("user_id", current_user.user_id),
+            username=updated_user_data.get("username", current_user.username),
+            email=updated_user_data.get("email", current_user.email),
+            api_keys=updated_user_data.get("api_keys", current_user.api_keys),
+            disabled=updated_user_data.get("disabled", current_user.disabled),
+        )
+    elif result.matched_count == 1:
+         # No fields were actually changed (e.g., provided same username)
+        return current_user
+    else:
+        # This case should ideally not happen if the user is authenticated
+        raise HTTPException(status_code=404, detail="User not found")
 
 @router.delete("/me")
 async def delete_user(current_user: User = Depends(get_current_user)):

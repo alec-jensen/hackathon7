@@ -40,7 +40,7 @@ async def startup_event():
     start = time.perf_counter()
     print("Starting up database...")
     await db_setup_timeseries()
-    print(f"Database setup completed in {time.perf_counter() - start:.2f} seconds.")
+    print("Database setup completed.")
     print("Starting up scheduler...")
     await start_scheduler()
     end = time.perf_counter()

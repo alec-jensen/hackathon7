@@ -60,7 +60,7 @@ class EmotionMonitorService:
         self.lock = threading.Lock()
         self.display_window = display_window
         self.last_bbox = None
-        self.time_window = 10
+        self.time_window = 60 # seconds
         self.stopped = False
         self.api_url = api_url
         self.api_key = api_key

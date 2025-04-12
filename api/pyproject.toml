@@ -12,6 +12,7 @@ dependencies = [
     "dotenv>=0.9.9",
     "fastapi>=0.115.12",
     "gitpython>=3.1.44",
+    "google-genai>=1.10.0",
     "jose>=1.0.0",
     "motor>=3.7.0",
     "passlib>=1.7.4",
