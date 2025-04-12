@@ -1,0 +1,41 @@
+---
+// Props passed to the component
+import { Image } from "astro:assets";
+import wordmark from "../assets/chorus.svg";
+import logo from "../assets/logoSquare.svg";
+---
+
+<style>
+  .image-pair {
+    display: flex;
+    flex-direction: row;
+    gap: 1rem;
+  }
+
+  .image-wrapper {
+    flex: 1;
+    display: flex;
+    align-items: stretch;
+  }
+
+  .image-wrapper img {
+    width: 100%;
+    height: auto;
+    object-fit: cover;
+  }
+
+  @media (max-width: 768px) {
+    .image-pair {
+      flex-direction: column;
+    }
+  }
+</style>
+
+<div class="image-pair">
+  <div class="image-wrapper">
+    <Image src={wordmark} alt="chorus" />
+  </div>
+  <div class="image-wrapper">
+    <Image src={logo} alt="chorus" />
+  </div>
+</div>
