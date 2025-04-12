@@ -1,0 +1,102 @@
+/* ===== Frog Pirate Collaboration Theme ===== */
+:root {
+    /* Primary Colors */
+    --pirate-teal: #1a6b6b; /* Deep aquatic green-blue */
+    --moss-green: #4a8c3e; /* Earthy frog-inspired green */
+    --golden-treasure: #ffc145; /* Warm pirate gold */
+
+    /* Secondary Colors */
+    --crimson-red: #d64045; /* Bold pirate energy */
+    --misty-aqua: #88c9d1; /* Soft, friendly blue-green */
+    --driftwood-brown: #a67c52; /* Neutral wood texture */
+
+    /* Neutrals */
+    --parchment: #f5f5dc; /* Creamy background */
+    --charcoal: #2a2a2a; /* Soft black for text */
+
+    /* Utility */
+    --shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* ===== Base Styles ===== */
+body {
+    background-color: var(--parchment);
+    color: var(--charcoal);
+    font-family: "Trebuchet MS", "Arial", sans-serif;
+    line-height: 1.6;
+    margin: 0;
+}
+
+/* ===== Typography ===== */
+h1,
+h2,
+h3 {
+    color: var(--pirate-teal);
+    font-family:
+        "Pirata One", cursive; /* Use a pirate-themed font if available */
+}
+
+a {
+    color: var(--crimson-red);
+    text-decoration: none;
+}
+a:hover {
+    color: var(--golden-treasure);
+}
+
+/* ===== Buttons (Call to Action) ===== */
+.button {
+    background-color: var(--golden-treasure);
+    color: var(--charcoal);
+    padding: 10px 20px;
+    border-radius: 4px;
+    font-weight: bold;
+    border: none;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    transition: transform 0.2s;
+}
+.button:hover {
+    background-color: var(--moss-green);
+    color: white;
+    transform: translateY(-2px);
+}
+
+/* ===== Navigation (Pirate Ship Vibes) ===== */
+nav {
+    background-color: var(--driftwood-brown);
+    padding: 1rem;
+}
+nav ul {
+    display: flex;
+    gap: 1rem;
+    list-style: none;
+}
+nav a {
+    color: var(--parchment);
+}
+
+/* ===== Collaboration Sections ===== */
+.section-team {
+    background-color: var(--misty-aqua);
+    padding: 2rem;
+    border-radius: 8px;
+}
+.section-team h2 {
+    color: var(--charcoal);
+}
+
+/* ===== Footer (Treasure Chest) ===== */
+footer {
+    background-color: var(--pirate-teal);
+    color: var(--parchment);
+    padding: 1rem;
+    text-align: center;
+}
+
+/* ===== Responsive Tweaks ===== */
+@media (max-width: 768px) {
+    nav ul {
+        flex-direction: column;
+    }
+}
