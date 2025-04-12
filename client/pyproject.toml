@@ -3,5 +3,12 @@ name = "client"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.13"
-dependencies = []
+requires-python = ">=3.12"
+dependencies = [
+    "appdirs>=1.4.4",
+    "fer>=22.5.1",
+    "ffmpeg>=1.4",
+    "moviepy==1.0.3",
+    "opencv-contrib-python>=3.3.0.9",
+    "tensorflow[and-cuda]>=2.19.0",
+]
