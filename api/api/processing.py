@@ -27,8 +27,10 @@ async def get_commits_for_user(
     project_id: str, user_email: str, start_time: datetime, end_time: datetime
 ) -> list[str]:
     """Fetch commit messages for a user within a project and time range."""
+    print(f"    DEBUG: Searching commits for user '{user_email}' in project '{project_id}' between {start_time} and {end_time}")
     project = await projects_collection.find_one({"project_id": project_id})
     if not project or "repos" not in project:
+        print(f"    DEBUG: Project '{project_id}' not found or has no repos.")
         return []
 
     all_commit_messages = []
@@ -37,25 +39,41 @@ async def get_commits_for_user(
     for repo_url in project["repos"]:
         repo_name = repo_url.split("/")[-1].replace(".git", "")
         repo_path = os.path.join(repo_base_path, repo_name)
+        print(f"    DEBUG: Processing repo URL: {repo_url} at path: {repo_path}")
 
         try:
             # Clone or pull the repo
             if os.path.exists(repo_path):
                 repo = Repo(repo_path)
-                print(f"    Fetching updates for repo: {repo_path}")
-                repo.remotes.origin.pull()
+                print(f"    DEBUG: Fetching updates for existing repo: {repo_path}")
+                # Add fetch before pull for robustness
+                try:
+                    repo.remotes.origin.fetch()
+                    repo.remotes.origin.pull()
+                except GitCommandError as pull_err:
+                    print(f"    WARNING: Git pull/fetch failed for {repo_url}: {pull_err}. Proceeding with local history.")
             else:
-                print(f"    Cloning repo: {repo_url} to {repo_path}")
+                print(f"    DEBUG: Cloning repo: {repo_url} to {repo_path}")
                 os.makedirs(repo_path, exist_ok=True)
                 repo = Repo.clone_from(repo_url, repo_path)
 
             # Iterate through commits and filter
+            print(f"    DEBUG: Iterating commits from {start_time.isoformat()} to {end_time.isoformat()}")
             commits = repo.iter_commits(
                 since=start_time.isoformat(), until=end_time.isoformat()
             )
+            commit_count_in_range = 0
+            found_user_commits = 0
             for commit in commits:
+                commit_count_in_range += 1
+                # print(f"    DEBUG: Checking commit {commit.hexsha} by {commit.author.email} at {commit.authored_datetime}") # Optional: Very verbose
                 if commit.author.email == user_email:
-                    all_commit_messages.append(commit.message.strip())
+                    found_user_commits += 1
+                    commit_message = commit.message.strip()
+                    all_commit_messages.append(commit_message)
+                    print(f"    DEBUG: Found commit by {user_email}: {commit.hexsha[:7]} - '{commit_message[:50]}...'")
+
+            print(f"    DEBUG: Checked {commit_count_in_range} commits in range for repo {repo_name}. Found {found_user_commits} matching user {user_email}.")
 
         except InvalidGitRepositoryError:
             print(f"    ERROR: Invalid repository path: {repo_path} for URL {repo_url}")
@@ -64,6 +82,7 @@ async def get_commits_for_user(
         except Exception as e:
             print(f"    ERROR: Unexpected error processing repo {repo_url}: {e}")
 
+    print(f"    DEBUG: Total commits found for {user_email} in project {project_id}: {len(all_commit_messages)}")
     return all_commit_messages
 
 
@@ -106,6 +125,10 @@ async def get_mood_summary_from_llm(
             "\nInstruction: Analyze the mood progression from previous reports to the current state. "
             "If you detect a significant negative trend or rapid decline, start your response *exactly* with 'ALARM: ' "
             "followed by a concise explanation (max 30 words). Otherwise, provide only the regular mood summary based on the current data."
+            "Neutral moods tend to coincide with a larger sadness or anger value, so if neutral is the most dominant emotion, "
+            "consider that as a neutral mood and not sadness. But, also consider the past reports to see if the user was happy before. "
+            "If the user was happy before and is now neutral, consider that as a negative trend. Only alarm for large negative trends, "
+            "not for small changes. If the user was sad before and is now neutral, that is a positive trend."
         )
     else:
         prompt_sections.append(

@@ -6,6 +6,7 @@ from ..database import users_collection, projects_collection
 import uuid
 import os
 from typing import Optional
+from bson import ObjectId  # Import ObjectId
 
 class CreateUserRequest(BaseModel):
     username: str
@@ -130,5 +131,12 @@ async def get_api_keys(current_user: User = Depends(get_current_user)):
 
 @router.get("/me/projects")
 async def get_user_projects(current_user: User = Depends(get_current_user)):
-    projects = await projects_collection.find({"members": current_user.user_id}).to_list(length=None)
-    return {"projects": projects}
+    projects_cursor = projects_collection.find({"members": current_user.user_id})
+    projects_list = await projects_cursor.to_list(length=None)
+
+    # Convert ObjectId to string for each project
+    for project in projects_list:
+        if "_id" in project and isinstance(project["_id"], ObjectId):
+            project["_id"] = str(project["_id"])
+
+    return {"projects": projects_list}

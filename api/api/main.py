@@ -65,7 +65,7 @@ scheduler = AsyncIOScheduler()
 
 scheduler.add_job(
     process_emotions_and_repos,
-    trigger=IntervalTrigger(minutes=5),
+    trigger=IntervalTrigger(seconds=300),
     id="process_emotions_and_repos",
     replace_existing=True,
 )
