@@ -53,7 +53,7 @@ class EmotionMonitorService:
         from fer import FER
         import cv2
 
-        self.detector = FER()
+        self.detector = FER(mtcnn=True)
         self.cap = cv2.VideoCapture(0)
         self.running = False
         self.emotion_data = deque()
@@ -65,6 +65,7 @@ class EmotionMonitorService:
         self.api_url = api_url
         self.api_key = api_key
         self.thread = None
+        self.last_average_send_time = 0 # Time when the last average was sent
 
     def start(self):
         if not self.cap.isOpened():
@@ -72,6 +73,7 @@ class EmotionMonitorService:
             return
 
         self.running = True
+        self.last_average_send_time = time.time() # Initialize when starting
         self.thread = threading.Thread(target=self._monitor_emotions)
         self.thread.daemon = True
         self.thread.start()
@@ -98,10 +100,16 @@ class EmotionMonitorService:
         print("Stop method finished.")
 
     def _send_emotion_data(self, timestamp, emotions):
+        if not emotions: # Don't send empty data
+            print("Skipping send: No emotion data.")
+            return
         try:
             headers = {"x-api-key": self.api_key}
-            response = requests.post(self.api_url, json={"timestamp": timestamp, "emotions": emotions}, headers=headers, timeout=5)
+            payload = {"timestamp": timestamp, "emotions": emotions}
+            print(f"Sending average data: {payload}") # Log what's being sent
+            response = requests.post(self.api_url, json=payload, headers=headers, timeout=10) # Increased timeout slightly
             response.raise_for_status()
+            print(f"API Response: {response.status_code}")
         except requests.exceptions.RequestException as e:
             print(f"Error sending data to API: {e}")
         except Exception as e:
@@ -161,7 +169,6 @@ class EmotionMonitorService:
                                     timestamp = time.time()
                                     with self.lock:
                                         self.emotion_data.append((timestamp, emotions))
-                                    self._send_emotion_data(timestamp, emotions)
                             frame_skip_counter = 0
                         else:
                             print("Tracker bbox invalid or out of bounds.")
@@ -180,6 +187,15 @@ class EmotionMonitorService:
                 with self.lock:
                     while self.emotion_data and self.emotion_data[0][0] < current_time - self.time_window:
                         self.emotion_data.popleft()
+
+                if current_time - self.last_average_send_time >= self.time_window:
+                    averages = self.get_averages() # Calculate averages over the current window
+                    if averages: # Check if there's data to send
+                        self._send_emotion_data(current_time, averages)
+                        self.last_average_send_time = current_time
+                    else:
+                        print(f"Time window elapsed, but no emotion data to average and send.")
+                        self.last_average_send_time = current_time
 
                 if self.display_window:
                     display_frame = frame
@@ -229,23 +245,26 @@ class EmotionMonitorService:
             if not self.emotion_data:
                 return {}
 
+            valid_emotion_data = [emotions for _, emotions in self.emotion_data if emotions]
+            if not valid_emotion_data:
+                return {}
+
             try:
-                all_emotion_keys = list(self.emotion_data[0][1].keys())
-            except (IndexError, AttributeError):
+                all_emotion_keys = list(valid_emotion_data[0].keys())
+            except (IndexError, AttributeError, KeyError):
+                print("Warning: Could not determine emotion keys from data.")
                 return {}
 
             emotion_totals = {key: 0.0 for key in all_emotion_keys}
-            emotion_counts = {key: 0 for key in all_emotion_keys}
 
-            num_samples = len(self.emotion_data)
+            num_samples = len(valid_emotion_data)
             if num_samples == 0:
-                return emotion_totals
+                return {}
 
-            for _, emotions in self.emotion_data:
+            for emotions in valid_emotion_data:
                 for emotion, score in emotions.items():
                     if emotion in emotion_totals:
                         emotion_totals[emotion] += score
-                        emotion_counts[emotion] += 1
 
             averages = {
                 emotion: emotion_totals[emotion] / num_samples
