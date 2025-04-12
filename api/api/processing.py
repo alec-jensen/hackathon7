@@ -310,6 +310,7 @@ async def process_emotions_and_repos():
                     {
                         "user_id": user_id,
                         "project_id": project_id,
+                        "report_type": "individual", # Ensure we only look at individual reports for last time
                     },
                     sort=[("report_timestamp", -1)],
                 )
@@ -322,6 +323,8 @@ async def process_emotions_and_repos():
 
                 current_processing_time = datetime.now(timezone.utc)
 
+                # Find new emotion data since the last report ended up to now
+                # The query already uses last_report_time as the lower bound ($gt)
                 new_emotions_cursor = emotions_collection.find(
                     {
                         "user_id": user_id,
@@ -342,16 +345,24 @@ async def process_emotions_and_repos():
                 processed_user_count += 1
                 print(f"    Found {len(new_emotions_data)} new emotion entries.")
 
-                start_time = new_emotions_data[0]["timestamp"]
+                # Determine start and end time of the new data period
+                # Use last_report_time as start_time if a report exists, otherwise use the first new emotion's time
+                start_time = last_report_time if last_report else new_emotions_data[0]["timestamp"]
                 end_time = new_emotions_data[-1]["timestamp"]
+                print(f"    Processing window: {start_time} -> {end_time}") # Add log for clarity
+
+                # Update project time window (using the actual start/end of the processed data)
+                # Note: project_min_start_time/project_max_end_time track the overall window for the group report
+                data_start_time = new_emotions_data[0]["timestamp"] # Actual start of data in this batch
+                data_end_time = new_emotions_data[-1]["timestamp"] # Actual end of data in this batch
 
                 if (
                     project_min_start_time is None
-                    or start_time < project_min_start_time
+                    or data_start_time < project_min_start_time
                 ):
-                    project_min_start_time = start_time
-                if project_max_end_time is None or end_time > project_max_end_time:
-                    project_max_end_time = end_time
+                    project_min_start_time = data_start_time
+                if project_max_end_time is None or data_end_time > project_max_end_time:
+                    project_max_end_time = data_end_time
 
                 project_all_emotion_entries.extend(new_emotions_data)
 
