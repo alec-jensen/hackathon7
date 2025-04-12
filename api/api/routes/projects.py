@@ -5,7 +5,8 @@ from ..auth import get_current_user
 from ..database import projects_collection, users_collection, emotions_collection
 import uuid
 from git import Repo, GitCommandError
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone  # Add timezone
+from bson import ObjectId  # Import ObjectId
 
 router = APIRouter()
 
@@ -77,6 +78,10 @@ async def get_project_details(project_id: str, current_user = Depends(get_curren
     if current_user.user_id not in project["members"]:
         raise HTTPException(status_code=403, detail="Only project members can view project details")
 
+    # Convert ObjectId to string before returning
+    if "_id" in project and isinstance(project["_id"], ObjectId):
+        project["_id"] = str(project["_id"])
+
     return project
 
 @router.delete("/{project_id}")
@@ -92,7 +97,12 @@ async def delete_project(project_id: str, current_user = Depends(get_current_use
     return {"message": "Project deleted successfully"}
 
 @router.get("/{project_id}/emotions")
-async def get_project_emotions(project_id: str, days: int = 7, current_user = Depends(get_current_user)):
+async def get_project_emotions(
+    project_id: str,
+    start_time: int = 0,
+    end_time: int = 0,
+    current_user = Depends(get_current_user)
+):
     project = await projects_collection.find_one({"project_id": project_id})
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -100,12 +110,24 @@ async def get_project_emotions(project_id: str, days: int = 7, current_user = De
     if current_user.user_id not in project["members"]:
         raise HTTPException(status_code=403, detail="Only project members can view emotions")
 
-    end_date = datetime.utcnow()
-    start_date = end_date - timedelta(days=days)
+    # Convert Unix timestamps to datetime objects (assuming UTC)
+    try:
+        start_date = datetime.fromtimestamp(start_time, tz=timezone.utc)
+        if end_time == 0:
+            end_date = datetime.utcnow()
+        else:
+            end_date = datetime.fromtimestamp(end_time, tz=timezone.utc)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid Unix timestamp format")
 
     emotions_data = await emotions_collection.find({
         "user_id": {"$in": project["members"]},
-        "timestamp": {"$gte": start_date, "$lte": end_date}
+        "timestamp": {"$gte": start_date, "$lte": end_date}  # Use converted dates
     }).to_list(length=None)
+
+    # Also convert ObjectId in emotions data
+    for emotion in emotions_data:
+        if "_id" in emotion and isinstance(emotion["_id"], ObjectId):
+            emotion["_id"] = str(emotion["_id"])
 
     return {"emotions": emotions_data}

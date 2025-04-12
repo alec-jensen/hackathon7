@@ -3,8 +3,9 @@ from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta
 from dotenv import load_dotenv
 import os
-from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+import time
 
 from .routes import users, emotions, projects
 from .processing import process_emotions_and_repos
@@ -36,8 +37,14 @@ if not JWT_SECRET_KEY:
 
 @app.on_event("startup")
 async def startup_event():
+    start = time.perf_counter()
+    print("Starting up database...")
     await db_setup_timeseries()
+    print(f"Database setup completed in {time.perf_counter() - start:.2f} seconds.")
+    print("Starting up scheduler...")
     await start_scheduler()
+    end = time.perf_counter()
+    print(f"Startup completed in {end - start:.2f} seconds.")
 
 @app.post("/token")
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
@@ -54,7 +61,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
-scheduler = BackgroundScheduler()
+scheduler = AsyncIOScheduler()
 
 scheduler.add_job(
     process_emotions_and_repos,
