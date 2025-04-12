@@ -23,6 +23,9 @@ if not GEMINI_API_KEY:
 
 gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 
+# for model in gemini_client.models.list():
+#     print(f"Available model: {model.name}")
+
 
 # Function to fetch commits for a specific user in a project within a time range
 async def get_commits_for_user(
@@ -142,13 +145,13 @@ async def get_mood_summary_from_llm(
     report_type: str = "Individual",
     previous_reports: list[dict] | None = None,
     individual_summaries: list[tuple[str, str]] | None = None,
-) -> tuple[str, bool, str | None]:
+) -> tuple[str | None, bool, str | None]:
     """
     Generates a mood summary using an LLM, potentially checking for alarms based on previous reports
-    or synthesizing group mood from individual summaries.
+    or synthesizing group mood from individual summaries. Returns None for summary on failure.
 
     Returns:
-        tuple[str, bool, str | None]: (summary, is_alarm, alarm_message)
+        tuple[str | None, bool, str | None]: (summary, is_alarm, alarm_message) - summary is None on LLM failure.
     """
     commit_log = (
         "\n".join(f"- {msg}" for msg in commits)
@@ -158,8 +161,8 @@ async def get_mood_summary_from_llm(
 
     # --- Prompt Construction ---
     prompt_sections = [
-        "Role: You are an AI assistant analyzing developer mood based on emotion data and commit logs.",
-        "Goal: Provide a concise mood summary. For individual reports with history, also identify significant negative shifts. For group reports, synthesize an overall team mood.",
+        "Role: You are an AI assistant helping understand developer well-being.",
+        "Goal: Provide a concise, easy-to-understand mood summary in a natural, conversational tone. Focus on the main feeling (dominant emotion). For individual reports with history, your *main job* is to spot *significant negative shifts* compared *only* to the *immediate previous report* (the temporal baseline). However, use the *entire provided history* of previous reports to understand the broader context and overall trend. Use the Neutral Mood Reference Baseline just for general context. For group reports, summarize the team's overall vibe.",
         "\nInput Data:",
         f"- Report Type: {report_type}",
     ]
@@ -181,44 +184,61 @@ async def get_mood_summary_from_llm(
     output_instructions = ["\nOutput Instructions:"]
 
     if previous_reports and "Individual" in report_type:
-        prompt_sections.append("- Previous Reports:")
-        previous_reports.sort(key=lambda r: r.get('end_time', datetime.min.replace(tzinfo=timezone.utc)))
+        previous_reports.sort(key=lambda r: r.get('end_time', datetime.min.replace(tzinfo=timezone.utc)), reverse=False)
+        baseline_report = previous_reports[-1]
+        baseline_avg_emotions = baseline_report.get("average_emotions", {})
+        baseline_summary = baseline_report.get("mood_summary", "N/A").split('\n')[0]
+        baseline_time = baseline_report.get("end_time", "N/A")
+        prompt_sections.append(f"- Immediate Temporal Baseline (Most Recent Previous Report, ended {baseline_time}): Avg Emotions: {baseline_avg_emotions}, Prev Summary: {baseline_summary}")
+        prompt_sections.append("- Full Provided History (Oldest to Newest):")
         for i, report in enumerate(previous_reports):
-            prev_avg_emotions = report.get("average_emotions", {})
-            prev_summary = report.get("mood_summary", "N/A").split('\n')[0]
-            prev_time = report.get("end_time", "N/A")
-            prompt_sections.append(
-                f"  - Report {i+1} (ended {prev_time}): Avg Emotions: {prev_avg_emotions}, Prev Summary: {prev_summary}"
-            )
+            report_time = report.get("end_time", "N/A")
+            report_avg_emotions = report.get("average_emotions", {})
+            report_summary = report.get("mood_summary", "N/A").split('\n')[0]
+            prompt_sections.append(f"  - Report {i+1} (ended {report_time}): Avg Emotions: {report_avg_emotions}, Prev Summary: {report_summary}")
 
         analysis_tasks.extend([
-            "1. Evaluate Current State: Determine the primary mood from 'Current Average Emotions'. Use 'Recent Commits' for context.",
-            "2. Compare with Previous: Analyze the trend from 'Previous Reports' to 'Current State'.",
-            "3. Identify Significant Negative Change: Look for *substantial* increases in negative emotions (sadness, anger, fear) OR a *sharp* decrease in positive emotions (joy), especially moving from positive to neutral/negative. Neutral often includes sadness/anger; consider it negative *only* if the previous state was clearly positive. A shift from sad/negative to neutral is *positive*.",
+            "1. **Identify Temporal Baseline:** Use the 'Immediate Temporal Baseline' (most recent previous report) Avg Emotions as the reference point for *alarm change detection*.",
+            "2. **Analyze Current State:** Look at the 'Current Average Emotions'. What's the main feeling (highest score)? How does the overall mood compare to the 'Neutral Mood Reference Baseline' generally?",
+            "3. **Analyze Trend:** How have things changed between the Current state and the *Immediate Temporal Baseline*? Also, consider the *Full Provided History* to understand the longer-term trend.",
+            "4. **Check for ALARM Condition (Based *only* on Change from *Immediate* Temporal Baseline):**",
+            "   - **Trigger ALARM *ONLY IF*:** There's a *clear and substantial WORSENING* compared to the *Immediate* Temporal Baseline. This means:",
+            "     - A *noticeable INCREASE* (e.g., >0.1 absolute increase) in 'anger', 'sadness', or 'fear'.",
+            "     - *OR* a *noticeable DECREASE* (e.g., >0.1 absolute decrease) in 'happy'.",
+            "   - ***DO NOT TRIGGER ALARM IF:***",
+            "     - The change from the *Immediate* Temporal Baseline is small (e.g., <0.05 absolute difference for key emotions).",
+            "     - The Current State shows *ANY improvement* compared to the *Immediate* Temporal Baseline.",
+            "     - There is no Temporal Baseline report provided.",
+            "   - The comparison to the Neutral Mood Reference Baseline is for context, *not* for triggering alarms.",
         ])
         output_instructions = [
-            "- **IF** a significant negative change is detected:",
-            "  - Start your response *exactly* with `ALARM: `.",
-            "  - Follow with a *very concise* (max 25 words) reason.",
-            "  - Optionally, add a brief (1-2 sentence) summary of the current state *after* the alarm line.",
-            "- **ELSE** (no significant negative change):",
-            "  - Provide a brief (2-3 sentence) summary of the developer's current mood, drawing a single primary conclusion. Integrate insights from emotions and commits.",
-            "- *Do not* send an alarm if there are no previous reports.",
+            "- **IF ALARM Condition is met (Significant Negative Shift from *Immediate* Temporal Baseline):**",
+            "  - Start response *exactly* with `ALARM: `.",
+            "  - Briefly state the *specific negative change* from the *Immediate* Temporal Baseline causing the alarm (e.g., 'Seems like sadness has increased notably since the last check-in.'). Keep it short (max 20 words).",
+            "  - *Do not* add any other summary after the alarm line.",
+            "- **ELSE (No Alarm: Mood is Stable, Improved, or Minor Change from *Immediate* Temporal Baseline):**",
+            "  - Write a brief (2-3 sentence) summary of how the developer seems to be feeling *currently*, in a natural, conversational way. *Highlight the main emotion(s)*.",
+            "  - Mention the *overall trend* considering the *Full Provided History* (e.g., 'Mood seems pretty stable compared to last time, continuing an upward trend observed over the past few reports...', 'While slightly better than the last report, the overall trend across the provided history has been somewhat negative...', 'Looks like things have improved since the last report...').",
+            "  - Briefly relate the current state to the Neutral Mood Reference Baseline (e.g., '...which is generally within the neutral range.', '...still a bit higher than the neutral baseline.').",
+            "  - Weave in insights from emotions and commits if they add helpful context.",
+            "- **Constraint:** Alarm decision is based *strictly* on the change from the *Immediate* Temporal Baseline. For non-alarm summaries, describe the current mood naturally, mention the trend based on the *full history provided*, compare generally to the Neutral Baseline, and *focus on the dominant feeling(s)*.",
         ]
     elif "Group" in report_type:
         analysis_tasks.extend([
-            "1. Synthesize Group Mood: Based on 'Group Average Emotions', 'All Recent Commits', and the provided 'Individual Summaries', determine the overall mood and key trends within the team.",
-            "2. Identify Common Themes or Divergences: Note if most members share a similar mood or if there are significant differences.",
+            "1. Synthesize Group Vibe: Based on 'Group Average Emotions', 'All Recent Commits', and 'Individual Summaries', what's the overall team mood? Pay attention to the main group feeling(s).",
+            "2. Contextualize: How does the 'Group Average Emotions' generally compare to the 'Neutral Mood Reference Baseline'?",
+            "3. Identify Themes: Any common threads, differences, or trends popping up?",
         ])
         output_instructions = [
-            "- Provide a brief (3-4 sentence) summary of the overall team mood.",
-            "- Mention any notable trends, common feelings, or significant divergences observed from the individual summaries and group data.",
-            "- Focus on a high-level overview.",
+            "- Write a brief (3-4 sentence) summary of the team's overall mood in a natural, conversational tone. *Highlight the main group feeling(s)*.",
+            "- Mention how the group average generally compares to the Neutral Mood Reference Baseline.",
+            "- Mention any interesting trends, common feelings, or big differences you noticed.",
+            "- Keep it a high-level overview.",
             "- *Do not* use the `ALARM:` prefix for group reports.",
         ]
     else:
-        analysis_tasks.append("1. Evaluate Current State: Determine the primary mood from 'Current Average Emotions'. Use 'Recent Commits' for context.")
-        output_instructions.append("- Provide a brief (2-3 sentence) summary of the developer's current mood, drawing a single primary conclusion. Integrate insights from emotions and commits.")
+        analysis_tasks.append("1. Evaluate Current State: What's the main feeling based on 'Current Average Emotions'? *Highlight the dominant emotion(s)*. How does it generally compare to the 'Neutral Mood Reference Baseline'? Use 'Recent Commits' for extra context.")
+        output_instructions.append("- Write a brief (2-3 sentence) summary of how the developer seems to be feeling right now, in a natural, conversational tone. Draw a main conclusion that *highlights the dominant emotion(s)*. Relate the mood generally to the Neutral Mood Reference Baseline. Weave in insights from emotions and commits if helpful.")
 
     prompt_sections.extend(analysis_tasks)
     prompt_sections.extend(output_instructions)
@@ -226,46 +246,52 @@ async def get_mood_summary_from_llm(
     prompt = "\n".join(prompt_sections)
 
     system_instruction_text = (
-        "You are an AI analyzing developer mood data. Your primary goal is to detect significant negative shifts for individuals "
-        "or synthesize group mood. For individuals with history, compare current data to previous reports. "
-        "If a significant negative shift is found for an individual, start your response *only* with 'ALARM: ' followed by a brief reason. "
-        "For group reports, provide a concise overview based on aggregated data and individual summaries. "
-        "Otherwise, provide a concise mood summary. Be objective and focus on identifying substantial changes or overall trends."
+        "You are an AI assistant helping understand developer well-being. Your goal is to provide summaries that sound natural and human-written, not robotic or overly analytical. Use the 'Neutral Mood Reference Baseline' (with +/- 0.15 buffer) just for general context. Always focus on and emphasize the dominant (highest scoring) emotion(s) in your summary. "
+        "For individual reports *with history*, your primary task is to detect *significant negative shifts* compared *strictly* to the *immediate previous report* (Temporal Baseline). "
+        "Trigger an alarm *ONLY* if negative emotions substantially *increase* OR positive emotions substantially *decrease* relative to that *immediate* Temporal Baseline. "
+        "**CRITICAL: DO NOT trigger an alarm based on deviation from the Neutral Reference Baseline, or if the mood is stable or improved compared to the *immediate* Temporal Baseline.** "
+        "When describing the mood trend in non-alarm summaries, consider the *entire provided history* of reports for context. "
+        "For group reports, summarize the overall team vibe conversationally, referencing the Neutral Baseline for context and highlighting dominant emotions. For all non-alarm summaries, mention the trend (using full history if available), relate the current state generally to the Neutral Reference Baseline, and emphasize the dominant emotion(s) in a natural way."
     )
     config = genai_types.GenerateContentConfig(
         system_instruction=system_instruction_text,
-        max_output_tokens=512,
         temperature=0.5
     )
 
-    print(f"    Sending prompt to LLM: {prompt}")
+    print(f"    Sending prompt to LLM (length: {len(prompt)} chars)")
     try:
         response = await gemini_client.aio.models.generate_content(
-            model="gemini-2.0-flash-lite", contents=prompt, config=config
+            model="gemini-2.0-flash-thinking-exp-01-21",
+            contents=prompt,
+            config=config
         )
+        print("RAW RESPONSE:", response.model_dump_json())
         full_response = response.text
         if not full_response:
-            raise ValueError("Empty response from LLM.")
+            print("    ERROR: LLM returned an empty response.")
+            return None, False, None
         print(f"    LLM response: {full_response}")
     except Exception as e:
         print(f"    ERROR: LLM request failed: {e}")
-        return "Error generating mood summary.", False, None
+        traceback.print_exc()
+        return None, False, None
 
     is_alarm = False
     alarm_message = None
     summary = full_response
     alarm_prefix = "ALARM: "
-    if full_response.startswith(alarm_prefix):
+    if full_response.startswith(alarm_prefix) and previous_reports and "Individual" in report_type:
         is_alarm = True
-        parts = full_response.split("\n", 1)
-        alarm_message = parts[0][len(alarm_prefix):].strip()
+        alarm_message = full_response[len(alarm_prefix):].strip().split('\n')[0]
         print(f"    ALARM DETECTED: {alarm_message}")
 
     if not previous_reports or "Group" in report_type:
-        is_alarm = False
-        alarm_message = None
+        if is_alarm:
+            print("    INFO: Correcting wrongly set alarm flag (no previous reports or group report).")
+            is_alarm = False
+            alarm_message = None
         if summary.startswith(alarm_prefix):
-            summary = summary[len(alarm_prefix):].lstrip()
+             summary = summary[len(alarm_prefix):].lstrip()
 
     return summary, is_alarm, alarm_message
 
@@ -310,7 +336,7 @@ async def process_emotions_and_repos():
                     {
                         "user_id": user_id,
                         "project_id": project_id,
-                        "report_type": "individual", # Ensure we only look at individual reports for last time
+                        "report_type": "individual",
                     },
                     sort=[("report_timestamp", -1)],
                 )
@@ -323,8 +349,6 @@ async def process_emotions_and_repos():
 
                 current_processing_time = datetime.now(timezone.utc)
 
-                # Find new emotion data since the last report ended up to now
-                # The query already uses last_report_time as the lower bound ($gt)
                 new_emotions_cursor = emotions_collection.find(
                     {
                         "user_id": user_id,
@@ -345,16 +369,12 @@ async def process_emotions_and_repos():
                 processed_user_count += 1
                 print(f"    Found {len(new_emotions_data)} new emotion entries.")
 
-                # Determine start and end time of the new data period
-                # Use last_report_time as start_time if a report exists, otherwise use the first new emotion's time
                 start_time = last_report_time if last_report else new_emotions_data[0]["timestamp"]
                 end_time = new_emotions_data[-1]["timestamp"]
-                print(f"    Processing window: {start_time} -> {end_time}") # Add log for clarity
+                print(f"    Processing window: {start_time} -> {end_time}")
 
-                # Update project time window (using the actual start/end of the processed data)
-                # Note: project_min_start_time/project_max_end_time track the overall window for the group report
-                data_start_time = new_emotions_data[0]["timestamp"] # Actual start of data in this batch
-                data_end_time = new_emotions_data[-1]["timestamp"] # Actual end of data in this batch
+                data_start_time = new_emotions_data[0]["timestamp"]
+                data_end_time = new_emotions_data[-1]["timestamp"]
 
                 if (
                     project_min_start_time is None
@@ -415,6 +435,11 @@ async def process_emotions_and_repos():
                     previous_reports=previous_reports,
                     individual_summaries=None
                 )
+
+                if mood_summary is None:
+                    print(f"    ERROR: Failed to generate mood summary for user {user_id}. Skipping report save.")
+                    continue
+
                 print(f"    Generated individual mood summary: {mood_summary}")
                 if is_alarm:
                     print(f"    ALARM TRIGGERED for user {user_id}: {alarm_message}")
@@ -472,6 +497,11 @@ async def process_emotions_and_repos():
                     previous_reports=None,
                     individual_summaries=individual_summaries_for_group
                 )
+
+                if group_mood_summary is None:
+                    print(f"    ERROR: Failed to generate group mood summary for project {project_id}. Skipping report save.")
+                    continue
+
                 print(f"    Generated group mood summary: {group_mood_summary}")
 
                 group_report_timestamp = datetime.now(timezone.utc)
@@ -494,7 +524,7 @@ async def process_emotions_and_repos():
                 print(f"    Stored new group mood report for project {project_id}.")
             else:
                 print(
-                    f"  Skipping group report for project {project_id}: No new data processed."
+                    f"  Skipping group report for project {project_id}: No new data processed or only failed individual reports."
                 )
 
         print("Finished processing emotions for reports.")
