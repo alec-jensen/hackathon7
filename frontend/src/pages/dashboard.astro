@@ -40,18 +40,7 @@ import "../styles/style.css";
     import { chorusAPI } from "../lib/sdk.js";
     import { navigate } from "astro:transitions/client";
     
-    document.addEventListener("astro:page-load", () => {
-        chorusAPI
-        .isLoggedIn()
-        .then((isLoggedIn) => {
-            if (!isLoggedIn) {
-                window.location.href = "/login";
-            }
-        })
-        .catch((error) => {
-            console.error("Dashboard: Error checking login status:", error);
-        });
-        
+    function refresh() {
         chorusAPI
         .getUserProjects()
         .then((response) => {
@@ -77,6 +66,21 @@ import "../styles/style.css";
         .catch((error) => {
             console.error("Dashboard: Error fetching projects:", error);
         });
+    }
+    
+    document.addEventListener("astro:page-load", () => {
+        chorusAPI
+        .isLoggedIn()
+        .then((isLoggedIn) => {
+            if (!isLoggedIn) {
+                window.location.href = "/login";
+            }
+        })
+        .catch((error) => {
+            console.error("Dashboard: Error checking login status:", error);
+        });
+
+        refresh();
         
         document.getElementById("create-project-form")?.addEventListener("submit", (event) => {
             event.preventDefault();
@@ -85,6 +89,8 @@ import "../styles/style.css";
                 alert("Please input a name")
             } else {
                 chorusAPI.createProject(name);
+                document.getElementById('addPopup')?.close();
+                refresh();
             }
         });
     });
