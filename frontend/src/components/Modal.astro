@@ -1,0 +1,31 @@
+---
+// src/components/Modal.astro
+const { id = "modal" } = Astro.props;
+import Button from "./Button.astro";
+---
+
+<style>
+    dialog {
+        border: none;
+        border-radius: 8px;
+        padding: 2rem;
+        max-width: 500px;
+        width: 90%;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    dialog::backdrop {
+        background: rgba(0, 0, 0, 0.6);
+    }
+
+    .modal-content {
+        position: relative;
+        text-align: center;
+    }
+</style>
+
+<dialog id={id}>
+    <div class="modal-content">
+        <slot />
+    </div>
+</dialog>

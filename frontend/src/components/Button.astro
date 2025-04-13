@@ -4,10 +4,12 @@ interface Props {
     target?: string;
     class?: string;
     id?: string; // Add id prop
-
+    onClick?: string;
 }
 
 const { href, target, class: buttonClass, id } = Astro.props as Props; // Destructure id
+
+const { onClick = "" } = Astro.props;
 ---
 
 <style>
@@ -93,7 +95,7 @@ const { href, target, class: buttonClass, id } = Astro.props as Props; // Destru
             <slot />
         </a>
     ) : (
-        <button type="submit" class={`button ${buttonClass || ''}`} id={id}> {/* Add type="submit" and id */}
+        <button type="submit" class={`button ${buttonClass || ''}`} id={id} onclick={onClick}> {/* Add type="submit" and id */}
             <slot />
         </button>
     )
