@@ -1,6 +1,13 @@
 ---
 import "../styles/style.css";
 import { ClientRouter } from "astro:transitions";
+import Titlebar from "../components/Titlebar.astro";
+
+interface Props {
+    hideTitlebar?: boolean;
+}
+
+const { hideTitlebar = false } = Astro.props as Props;
 ---
 
 <!doctype html>
@@ -22,6 +29,7 @@ import { ClientRouter } from "astro:transitions";
         <ClientRouter />
     </head>
     <body>
+        {!hideTitlebar && <Titlebar />}
         <slot />
     </body>
 </html>
