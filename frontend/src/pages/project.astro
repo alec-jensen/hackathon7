@@ -58,91 +58,165 @@ import Layout from "../layouts/Layout.astro";
         nodata: noDataColor // Add nodata key for easier lookup
     };
     // Use a helper function for color lookup
-    function getColor(emotionKey) {
-        return emotionColorMap[emotionKey.toLowerCase()] || noDataColor;
+    function getColor(emotionKey: string): string {
+        return emotionColorMap[emotionKey.toLowerCase() as keyof typeof emotionColorMap] || noDataColor;
     }
 
     // --- Emotion Bar Logic ---
 
-    function createEmotionGradient(emotionData) {
+    function createEmotionGradient(emotionData: { time: number; emotion: string }[]) {
         emotionData.sort((a, b) => a.time - b.time);
 
-        const processedPoints = [];
-        // Add a starting point if data doesn't start at 0
-        if (emotionData.length === 0 || emotionData[0].time > 0) {
-            processedPoints.push({ time: 0, emotion: 'nodata' });
-        }
-        // Add the actual data points
-        processedPoints.push(...emotionData);
-        // Add an ending point if data doesn't end at 100
-        if (emotionData.length === 0 || emotionData[emotionData.length - 1].time < 100) {
-             // Use the last available emotion if it's right before 100, otherwise 'nodata'
-             const lastEmotion = (emotionData.length > 0 && emotionData[emotionData.length - 1].time > 99.9)
-                               ? emotionData[emotionData.length - 1].emotion
-                               : 'nodata';
-            processedPoints.push({ time: 100, emotion: lastEmotion });
-        }
-
-        if (processedPoints.length === 0) {
-             // Should not happen with the logic above, but as a fallback
+        if (emotionData.length === 0) {
             return `linear-gradient(to right, ${noDataColor}, ${noDataColor})`;
         }
-        if (processedPoints.length === 1) {
-             // If only one point (e.g., only start or end 'nodata'), fill bar with its color
-            const color = getColor(processedPoints[0].emotion);
-            return `linear-gradient(to right, ${color}, ${color})`;
+
+        const stops = [];
+        let lastTime = 0;
+        const maxTimeGapPercent = 5;
+        const epsilon = 0.001; // Small offset for sharp transitions
+
+        // Handle gap at the start
+        if (emotionData[0].time > lastTime + epsilon) {
+            stops.push({ time: lastTime, color: noDataColor });
+            // End gap just before the first data point
+            stops.push({ time: Math.max(lastTime, emotionData[0].time - epsilon), color: noDataColor });
+            lastTime = emotionData[0].time;
         }
 
+        // Iterate through the points
+        for (let i = 0; i < emotionData.length; i++) {
+            const currentPoint = emotionData[i];
+            const currentColor = getColor(currentPoint.emotion);
+            // Ensure currentTime doesn't go backward due to epsilon adjustments
+            const currentTime = Math.max(lastTime, currentPoint.time);
 
-        const gradientStops = [];
-        const maxTimeGapPercent = 5; // Threshold: 5% gap is considered large
+            // Determine the end time for this block
+            let blockEndTime = 100;
+            let nextPointStartTime = 100;
+            let isGapAfter = false;
 
-        // Add the very first stop at 0%
-        gradientStops.push(`${getColor(processedPoints[0].emotion)} 0%`);
-
-        for (let i = 0; i < processedPoints.length - 1; i++) {
-            const p1 = processedPoints[i];
-            const p2 = processedPoints[i + 1];
-
-            const color1 = getColor(p1.emotion);
-            const color2 = getColor(p2.emotion);
-            const time1 = p1.time;
-            const time2 = p2.time;
-
-            // Prevent division by zero or tiny gaps causing issues
-            if (time2 <= time1 + 0.001) continue;
-
-            // Check for large gap
-            if (time2 - time1 > maxTimeGapPercent) {
-                // End previous color block just after its time
-                gradientStops.push(`${color1} ${time1}%`);
-                // Start noData block immediately
-                gradientStops.push(`${noDataColor} ${time1}%`);
-                // End noData block just before the next point's time
-                gradientStops.push(`${noDataColor} ${time2}%`);
-                 // Start next color block at its time
-                gradientStops.push(`${color2} ${time2}%`);
+            if (i + 1 < emotionData.length) {
+                nextPointStartTime = emotionData[i + 1].time;
+                if (nextPointStartTime - currentTime > maxTimeGapPercent) {
+                    // End sharply just after current time if gap follows
+                    blockEndTime = Math.min(100, currentTime + epsilon);
+                    isGapAfter = true;
+                } else {
+                    // End just before next point starts
+                    blockEndTime = Math.max(currentTime, nextPointStartTime - epsilon);
+                }
             } else {
-                 // Small gap or same color: create sharp transition
-                 // End previous color block right at the start of the next block
-                gradientStops.push(`${color1} ${time2}%`);
-                 // Start next color block immediately
-                gradientStops.push(`${color2} ${time2}%`);
+                blockEndTime = 100; // Last point extends to 100%
+            }
+            // Ensure block end time is not before start time
+            blockEndTime = Math.max(currentTime, blockEndTime);
+
+            // Add stops for the current color block
+            // Start block at the *later* of lastTime or currentTime
+            stops.push({ time: Math.max(lastTime, currentTime), color: currentColor });
+            stops.push({ time: blockEndTime, color: currentColor }); // End block
+
+            lastTime = blockEndTime; // Update lastTime to the end of this block
+
+            // If there was a gap after this block
+            if (isGapAfter) {
+                 // Start gap right after block ends
+                 stops.push({ time: blockEndTime, color: noDataColor });
+                 // End gap just before next point starts
+                 stops.push({ time: Math.max(blockEndTime, nextPointStartTime - epsilon), color: noDataColor });
+                 lastTime = nextPointStartTime; // Update lastTime past the gap
             }
         }
 
-        // Ensure the final color extends to 100%
-        gradientStops.push(`${getColor(processedPoints[processedPoints.length - 1].emotion)} 100%`);
+         // Ensure start at 0 and end at 100
+         if (stops.length === 0 || stops[0].time > 0) {
+             stops.unshift({ time: 0, color: noDataColor });
+         }
+         // Ensure the very last stop reaches 100%
+         if (stops.length > 0 && stops[stops.length - 1].time < 100) {
+             const lastStop = stops[stops.length - 1];
+             // If the last segment wasn't already nodata, add a nodata segment
+             if (lastStop.color !== noDataColor) {
+                 stops.push({ time: lastStop.time, color: noDataColor });
+             }
+             stops.push({ time: 100, color: noDataColor });
+         } else if (stops.length > 0 && stops[stops.length - 1].time >= 100) {
+            // Ensure the last stop is exactly 100 and has the correct color
+            const lastStop = stops[stops.length - 1];
+             // Remove any stops potentially > 100 due to epsilon
+             while(stops.length > 0 && stops[stops.length - 1].time > 100) {
+                 stops.pop();
+             }
+             // Ensure the last stop is 100%
+             if (stops.length > 0) {
+                 stops[stops.length - 1].time = 100;
+             } else {
+                 // If all stops were > 100, add a 100% stop
+                 stops.push({ time: 100, color: lastStop.color }); // Use color of original last stop
+             }
 
-        // Basic filtering of consecutive identical stops (optional, but good practice)
-        const finalStops = gradientStops.filter((stop, index, arr) => {
+         } else if (stops.length === 0) { // Should not happen if emotionData had items
+             stops.push({ time: 0, color: noDataColor });
+             stops.push({ time: 100, color: noDataColor });
+         }
+
+
+        // Convert to string format and filter duplicates/redundancies
+        const finalStopStrings = [];
+        for(let i = 0; i < stops.length; i++) {
+            const current = stops[i];
+            // Clamp time between 0 and 100, format to few decimal places
+            const timePercent = Math.max(0, Math.min(100, current.time)).toFixed(4);
+            const stopStr = `${current.color} ${timePercent}%`;
+
+            if (i > 0) {
+                const prevStopStr = finalStopStrings[finalStopStrings.length - 1];
+                const [, prevTimePercentStr] = prevStopStr.split(" ");
+                // Skip if identical to previous stop
+                if (stopStr === prevStopStr) {
+                    continue;
+                }
+                // Skip if time is same as previous (browser uses last color at a given time)
+                // Allow if it's the very first stop being added (index check implicit)
+                if (`${timePercent}%` === prevTimePercentStr) {
+                     // Overwrite the previous stop at the same time with this new color
+                     finalStopStrings[finalStopStrings.length - 1] = stopStr;
+                     continue;
+                }
+            }
+            finalStopStrings.push(stopStr);
+        }
+
+         // Ensure 0% and 100% stops exist after filtering
+         if (finalStopStrings.length === 0 || !finalStopStrings[0].endsWith(" 0.0000%")) {
+             const firstColor = finalStopStrings.length > 0 ? finalStopStrings[0].split(" ")[0] : noDataColor;
+             finalStopStrings.unshift(`${firstColor} 0.0000%`);
+         }
+         // Ensure the very last stop is 100%
+         if (finalStopStrings.length > 0 && !finalStopStrings[finalStopStrings.length - 1].endsWith(" 100.0000%")) {
+              const lastStopStr = finalStopStrings[finalStopStrings.length - 1];
+              const [lastColor, lastTimeStr] = lastStopStr.split(" ");
+              // If the last stop is before 100%, extend its color to 100%
+              if (parseFloat(lastTimeStr) < 100) {
+                   finalStopStrings.push(`${lastColor} 100.0000%`);
+              } else {
+                  // If last stop is somehow > 100%, correct it (shouldn't happen with clamping)
+                  finalStopStrings[finalStopStrings.length - 1] = `${lastColor} 100.0000%`;
+              }
+         } else if (finalStopStrings.length === 0) {
+              finalStopStrings.push(`${noDataColor} 0.0000%`);
+              finalStopStrings.push(`${noDataColor} 100.0000%`);
+         }
+          // Final duplicate check after ensuring 0/100
+          const uniqueFinalStops = finalStopStrings.filter((stop, index, arr) => {
             if (index === 0) return true;
-            // Keep stop if it's different from the previous one
             return stop !== arr[index - 1];
         });
 
 
-        return `linear-gradient(to right, ${finalStops.join(", ")})`;
+        console.log("Generated Gradient Stops:", uniqueFinalStops);
+        return `linear-gradient(to right, ${uniqueFinalStops.join(", ")})`;
     }
 
     // --- End Emotion Bar Logic ---
