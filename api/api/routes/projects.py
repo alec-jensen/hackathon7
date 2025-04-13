@@ -26,6 +26,14 @@ class UpdateProjectRequest(BaseModel):
     name: Optional[str] = None
 
 
+class AddMemberRequest(BaseModel):
+    user_id: str
+
+
+class AddRepoRequest(BaseModel):  # Add this model
+    repo_url: HttpUrl
+
+
 @router.post("/")
 async def create_project(
     request_data: CreateProjectRequest, current_user=Depends(get_current_user)
@@ -43,7 +51,7 @@ async def create_project(
 
 @router.post("/{project_id}/add-member")
 async def add_member_to_project(
-    project_id: str, email: str, current_user=Depends(get_current_user)
+    project_id: str, request_data: AddMemberRequest, current_user=Depends(get_current_user)
 ):
     project = await projects_collection.find_one({"project_id": project_id})
     if not project:
@@ -54,10 +62,10 @@ async def add_member_to_project(
             status_code=403, detail="Only the project owner can add members"
         )
 
-    user = await users_collection.find_one({"email": email})
+    user = await users_collection.find_one({"user_id": request_data.user_id})
     if not user:
         raise HTTPException(
-            status_code=404, detail="User with the given email not found"
+            status_code=404, detail="User with the given ID not found"
         )
 
     if user["user_id"] in project["members"]:
@@ -73,7 +81,7 @@ async def add_member_to_project(
 
 @router.post("/{project_id}/add-repo")
 async def add_repo_to_project(
-    project_id: str, repo_url: HttpUrl, current_user=Depends(get_current_user)
+    project_id: str, request_data: AddRepoRequest, current_user=Depends(get_current_user)  # Modify signature
 ):
     project = await projects_collection.find_one({"project_id": project_id})
     if not project:
@@ -87,19 +95,30 @@ async def add_repo_to_project(
     if "repos" not in project:
         project["repos"] = []
 
-    if repo_url in project["repos"]:
+    repo_url_str = str(request_data.repo_url)  # Get repo_url from request_data
+
+    if repo_url_str in project["repos"]:  # Compare string representation
         raise HTTPException(
             status_code=400, detail="Repository already added to the project"
         )
 
     # Validate the repository URL
     try:
-        Repo.clone_from(str(repo_url), to_path="/tmp/validate_repo", depth=1)
-    except GitCommandError:
-        raise HTTPException(status_code=400, detail="Invalid Git repository URL")
+        # Clone to a unique temporary directory to avoid conflicts
+        temp_repo_path = f"/tmp/validate_repo_{uuid.uuid4()}"
+        Repo.clone_from(repo_url_str, to_path=temp_repo_path, depth=1)
+        # Clean up the temporary directory (optional, depends on system setup)
+        import shutil
+        shutil.rmtree(temp_repo_path)
+    except GitCommandError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid Git repository URL or unable to clone: {e}")
+    except Exception as e:  # Catch other potential errors during cleanup
+        # Log the error if necessary
+        print(f"Error during repo validation/cleanup: {e}")
+        # Decide if this should prevent adding the repo or just be logged
 
     await projects_collection.update_one(
-        {"project_id": project_id}, {"$push": {"repos": str(repo_url)}}
+        {"project_id": project_id}, {"$push": {"repos": repo_url_str}}  # Use the string representation
     )
     return {"message": "Repository added successfully"}
 
