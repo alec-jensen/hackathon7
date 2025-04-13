@@ -19,8 +19,8 @@ import "../styles/style.css";
     <Modal id="addPopup">
         <div>
             <h2>Create project</h2>
-            <form>
-                <input type="text" style=" border-radius: 5px; margin: 20px; border: 2px solid teal;" placeholder="Project name">
+            <div>
+                <input id="projectName" type="text" style=" border-radius: 5px; margin: 20px; border: 2px solid teal;" placeholder="Project name">
                 <br>
                 <button
                     class="close-btn"
@@ -28,8 +28,8 @@ import "../styles/style.css";
                     style="background: none;border: none;cursor: pointer;padding: 1.5rem;color: var(--crimson-red);}"
                     >Cancel</button
                 >
-                <Button onClick="">Confirm</Button>
-            </form>
+                <Button id="confirm-button">Confirm</Button>
+            </div>
         </div>
     </Modal>
 </Layout>
@@ -75,6 +75,13 @@ import "../styles/style.css";
             .catch((error) => {
                 console.error("Dashboard: Error fetching projects:", error);
             });
+
+        document.getElementById("confirm-button")?.addEventListener("onclick", function(event){
+            event.preventDefault();
+            console.log("asdf");
+            let name = document.getElementById("projectName")?.value;
+            alert(name);
+        });
     });
 </script>
 
