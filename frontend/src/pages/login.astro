@@ -1,5 +1,73 @@
 ---
-const { title = "Default Title" } = Astro.props;
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+import Layout from "../layouts/Layout.astro";
+import "../styles/style.css"
+import "../styles/loginpage.css"
+import AniButton from "../components/Button.astro"
 ---
+
+<Layout>
+    <div>
+        <form id="login-form">
+            <h2>log in to chorus</h2>
+            <div>
+                <input id="username" type="text" placeholder="username" required>
+            </div>
+            <div>
+                <input id="password" type="password" placeholder="password" required>
+            </div>
+            <div>
+                <AniButton type="submit">
+                    Sign In
+                </AniButton>
+            </div>
+             <p id="login-error"></p> <!-- Error message placeholder -->
+        </form>
+    </div>
+</Layout>
+
+<script>
+    import { chorusAPI } from '../lib/sdk.js';
+
+    function handleLogin(event) {
+        event.preventDefault(); // Prevent default form submission
+        const form = event.target;
+        const usernameInput = form.querySelector('#username');
+        const passwordInput = form.querySelector('#password');
+        const errorElement = form.querySelector('#login-error');
+
+        const username = usernameInput.value;
+        const password = passwordInput.value;
+        errorElement.textContent = ''; // Clear previous errors
+
+        console.log('Attempting login with:', { username, password });
+
+        // Basic validation (optional, but good practice)
+        if (!username || !password) {
+            errorElement.textContent = 'Please enter both username and password.';
+            console.error('Username or password missing');
+            return;
+        }
+
+        chorusAPI.login(username, password)
+            .then(data => {
+                console.log('Login successful:', data);
+                localStorage.setItem('token', data.access_token);
+
+                window.location.href = '/dashboard';
+            })
+            .catch(error => {
+                console.error('Login failed:', error);
+                errorElement.textContent = 'Login failed. Please check your credentials.';
+            });
+    }
+
+    // Add event listener after the DOM is loaded
+    document.addEventListener('DOMContentLoaded', () => {
+        const loginForm = document.getElementById('login-form');
+        if (loginForm) {
+            loginForm.addEventListener('submit', handleLogin);
+        } else {
+            console.error('Login form not found');
+        }
+    });
+</script>

@@ -1,0 +1,44 @@
+---
+const { title = "Pirate's Cove" } = Astro.props;
+---
+
+<style>
+  header.title-bar {
+    background-color: var(--pirate-teal);
+    color: var(--parchment);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 2rem;
+    box-shadow: var(--shadow);
+  }
+
+  .logo {
+    font-size: 1.8rem;
+    font-weight: bold;
+    color: var(--golden-treasure);
+    text-shadow: 1px 1px 2px var(--charcoal);
+  }
+
+  nav a {
+    margin-left: 1.5rem;
+    color: var(--misty-aqua);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.3s ease;
+  }
+
+  nav a:hover {
+    color: var(--golden-treasure);
+  }
+</style>
+
+<header class="title-bar">
+  <div class="logo">{title}</div>
+  <nav>
+    <a href="/">Home</a>
+    <a href="/about">About</a>
+    <a href="/crew">Crew</a>
+    <a href="/treasure-map">Map</a>
+  </nav>
+</header>

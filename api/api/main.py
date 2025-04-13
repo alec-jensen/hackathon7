@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends
 from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.middleware.cors import CORSMiddleware  # Import CORS middleware
 from datetime import timedelta
 from dotenv import load_dotenv
 import os
@@ -20,6 +21,17 @@ from .auth import (
 from fastapi import HTTPException
 
 app = FastAPI()
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:4321",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
 
 app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(emotions.router, prefix="/emotions", tags=["emotions"])

@@ -1,0 +1,97 @@
+---
+import Layout from "../layouts/Layout.astro";
+import "../styles/style.css"
+import "../styles/loginpage.css"
+import AniButton from "../components/Button.astro"
+---
+
+<Layout>
+    <div>
+        <form id="login-form">
+            <h2>log in to chorus</h2>
+            <div>
+                <input id="username" type="text" placeholder="username" required>
+            </div>
+            <div>
+                <input id="password" type="password" placeholder="password" required>
+            </div>
+            <div>
+                <AniButton type="submit">
+                    Sign Up
+                </AniButton>
+            </div>
+             <p id="login-error"></p> <!-- Error message placeholder -->
+        </form>
+    </div>
+</Layout>
+
+<script>
+    import { chorusAPI } from '../lib/sdk.js';
+
+    function handleSignup(event) {
+        event.preventDefault(); // Prevent default form submission
+        const form = event.target;
+        const usernameInput = form.querySelector('#username');
+        const passwordInput = form.querySelector('#password');
+        const errorElement = form.querySelector('#login-error');
+
+        const username = usernameInput.value;
+        const password = passwordInput.value;
+        errorElement.textContent = ''; // Clear previous errors
+        successElement.textContent = ''; // Clear previous success messages
+
+        console.log('Attempting signup with:', { username, password });
+
+        // Basic validation (optional, but good practice)
+        if (!username || !password) {
+            errorElement.textContent = 'Please enter both username and password.';
+            console.error('Username or password missing');
+            return;
+        }
+
+        // Call createUser API method
+        chorusAPI.createUser(username, password)
+            .then(data => {
+                console.log('Signup successful:', data);
+                form.reset(); // Optionally clear the form
+                
+                chorusAPI.login(username, password)
+                    .then(loginData => {
+                        console.log('Login successful:', loginData);
+                        localStorage.setItem('token', loginData.access_token);
+
+                        window.location.href = '/dashboard';
+                    })
+                    .catch(loginError => {
+                        console.error('Login failed:', loginError);
+                        errorElement.textContent = 'Login failed after signup. Please try again.';
+                    });
+            })
+            .catch(error => {
+                console.error('Signup failed:', error);
+                let detail = 'Signup failed. Please try again.';
+                try {
+                    const match = error.message.match(/details: (.*)/);
+                    if (match && match[1]) {
+                        const errorDetails = JSON.parse(match[1]);
+                        if (errorDetails.detail) {
+                            detail = `Signup failed: ${errorDetails.detail}`;
+                        }
+                    }
+                } catch (parseError) {
+                    // Ignore if parsing fails, use the generic message
+                }
+                errorElement.textContent = detail;
+            });
+    }
+
+    // Add event listener after the DOM is loaded
+    document.addEventListener('DOMContentLoaded', () => {
+        const signupForm = document.getElementById('signup-form');
+        if (signupForm) {
+            signupForm.addEventListener('submit', handleSignup);
+        } else {
+            console.error('Signup form not found');
+        }
+    });
+</script>
