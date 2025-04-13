@@ -29,6 +29,7 @@ import Layout from "../layouts/Layout.astro";
                     <li id="key-sadness">Sadness</li>
                     <li id="key-surprise">Surprise</li>
                     <li id="key-neutral">Neutral</li>
+                    <li id="key-nodata">No Data</li>
                 </ul>
             </div>
         </div>
@@ -417,7 +418,8 @@ import Layout from "../layouts/Layout.astro";
         --color-happiness: rgb(255, 213, 79);
         --color-sadness: rgb(126, 87, 194);
         --color-surprise: rgb(255, 167, 38);
-        --color-neutral: rgb(173, 216, 230); /* Updated Neutral Color (Light Blue) */
+        --color-neutral: rgb(173, 216, 230);
+        --color-nodata: rgb(220, 220, 220);
     }
 
     #key-anger::before {
@@ -440,6 +442,9 @@ import Layout from "../layouts/Layout.astro";
     }
     #key-neutral::before {
         background-color: var(--color-neutral); /* This will now use the light blue */
+    }
+    #key-nodata::before {
+        background-color: var(--color-nodata);
     }
 
     h2 {
