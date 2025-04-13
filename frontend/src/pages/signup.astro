@@ -24,7 +24,6 @@ import Layout from "../layouts/Layout.astro";
                 </button>
             </div>
              <p id="signup-error"></p>
-             <p id="signup-success"></p>
         </form>
     </div>
 </Layout>
@@ -38,7 +37,6 @@ import Layout from "../layouts/Layout.astro";
         const usernameInput = form.querySelector('#username');
         const passwordInput = form.querySelector('#password');
         const errorElement = form.querySelector('#signup-error');
-        const successElement = form.querySelector('#signup-success');
 
         const username = usernameInput.value;
         const password = passwordInput.value;
@@ -58,7 +56,6 @@ import Layout from "../layouts/Layout.astro";
         chorusAPI.createUser(username, password)
             .then(data => {
                 console.log('Signup successful:', data);
-                successElement.textContent = `Signup successful! User ID: ${data.user_id}.`;
                 form.reset(); // Optionally clear the form
                 
                 chorusAPI.login(username, password)
