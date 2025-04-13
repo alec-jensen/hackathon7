@@ -13,7 +13,7 @@ import "../styles/style.css";
             <!-- Project items will be rendered here -->
         </div>
         <a onclick="document.getElementById('addPopup').showModal()"
-            ><Button>add project</Button></a
+        ><Button>add project</Button></a
         >
     </div>
     <Modal id="addPopup">
@@ -21,13 +21,18 @@ import "../styles/style.css";
             <h2>Create project</h2>
             <div>
                 <form id="create-project-form">
-                    <input id="projectName" type="text" style=" border-radius: 5px; margin: 20px; border: 2px solid teal;" placeholder="Project name">
-                    <br>
+                    <input
+                    id="projectName"
+                    type="text"
+                    style=" border-radius: 5px; margin: 20px; border: 2px solid teal;"
+                    placeholder="Project name"
+                    />
+                    <br />
                     <button
-                        class="close-btn"
-                        onclick="this.closest('dialog').close()"
-                        style="background: none;border: none;cursor: pointer;padding: 1.5rem;color: var(--crimson-red);}"
-                        >Cancel</button
+                    class="close-btn"
+                    onclick="this.closest('dialog').close()"
+                    style="background: none;border: none;cursor: pointer;padding: 1.5rem;color: var(--crimson-red);}"
+                    >Cancel</button
                     >
                     <Button id="confirm-button">Confirm</Button>
                 </form>
@@ -39,49 +44,53 @@ import "../styles/style.css";
 <script>
     import { chorusAPI } from "../lib/sdk.js";
     import { navigate } from "astro:transitions/client";
-
+    
     document.addEventListener("astro:page-load", () => {
         chorusAPI
-            .isLoggedIn()
-            .then((isLoggedIn) => {
-                if (!isLoggedIn) {
-                    window.location.href = "/login";
-                }
-            })
-            .catch((error) => {
-                console.error("Dashboard: Error checking login status:", error);
-            });
-
+        .isLoggedIn()
+        .then((isLoggedIn) => {
+            if (!isLoggedIn) {
+                window.location.href = "/login";
+            }
+        })
+        .catch((error) => {
+            console.error("Dashboard: Error checking login status:", error);
+        });
+        
         chorusAPI
-            .getUserProjects()
-            .then((response) => {
-                const projectList = document.getElementById("project-list");
-                projectList.innerHTML = ""; // Clear existing content
-
-                if (response.projects.length === 0) {
-                    projectList.innerHTML = "<p>No projects found.</p>";
-                    return;
-                }
-
-                response.projects.forEach((project) => {
-                    const projectItem = document.createElement("div");
-                    projectItem.className = "project-item";
-                    projectItem.innerHTML = `
+        .getUserProjects()
+        .then((response) => {
+            const projectList = document.getElementById("project-list");
+            projectList.innerHTML = ""; // Clear existing content
+            
+            if (response.projects.length === 0) {
+                projectList.innerHTML = "<p>No projects found.</p>";
+                return;
+            }
+            
+            response.projects.forEach((project) => {
+                const projectItem = document.createElement("div");
+                projectItem.className = "project-item";
+                projectItem.innerHTML = `
                         <h2>${project.name}</h2>
                         <p>${project.description}</p>
                         <a href="/project?project_id=${project.project_id}">View Project</a>
                     `;
-                    projectList.appendChild(projectItem);
-                });
-            })
-            .catch((error) => {
-                console.error("Dashboard: Error fetching projects:", error);
+                projectList.appendChild(projectItem);
             });
-
-        document.getElementById("create-project-form")?.addEventListener("submit", (event) =>{
+        })
+        .catch((error) => {
+            console.error("Dashboard: Error fetching projects:", error);
+        });
+        
+        document.getElementById("create-project-form")?.addEventListener("submit", (event) => {
             event.preventDefault();
             let name = document.getElementById("projectName")?.value;
-            alert(name);
+            if (name.length < 1) {
+                alert("Please input a name")
+            } else {
+                chorusAPI.createProject(name);
+            }
         });
     });
 </script>
@@ -91,13 +100,13 @@ import "../styles/style.css";
         padding: 20px;
         top: 0px;
     }
-
+    
     #project-list {
         display: flex;
         flex-direction: column;
         align-items: center;
     }
-
+    
     .project-item {
         display: flex;
         flex-direction: column;
@@ -110,7 +119,7 @@ import "../styles/style.css";
         width: 100%; /* Full width */
         max-width: 300px; /* Optional: Limit width */
     }
-
+    
     /* Optional: Style the link inside the project item */
     .project-item a {
         display: inline-block; /* Allows margin/padding */
@@ -119,7 +128,7 @@ import "../styles/style.css";
         color: var(--deep-teal); /* Use a theme color */
         font-weight: bold;
     }
-
+    
     .project-item a:hover {
         text-decoration: underline;
     }
