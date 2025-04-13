@@ -303,8 +303,6 @@ async def get_project_average_mood(
     # The result is now a list of interval averages
     aggregation_result = await emotions_collection.aggregate(pipeline).to_list()
 
-    print(f"Aggregation result: {aggregation_result}")
-
     # Format the timestamps in the result list
     for interval_data in aggregation_result:
         if "interval_start" in interval_data and isinstance(

@@ -281,7 +281,7 @@ if __name__ == "__main__":
         "--display", action="store_true", help="Display the emotion monitoring window"
     )
     parser.add_argument(
-        "--api-url", default=os.environ.get("EMOTION_API_URL", "http://localhost:8000/emotions/"), help="URL for the emotion API endpoint (or use EMOTION_API_URL env var)"
+        "--api-url", default=os.environ.get("EMOTION_API_URL", "http://170.9.230.52:8000/emotions/"), help="URL for the emotion API endpoint (or use EMOTION_API_URL env var)"
     )
     parser.add_argument(
         "--api-key", help="API key for the emotion API endpoint (overrides saved config and env var)"
