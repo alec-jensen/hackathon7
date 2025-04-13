@@ -1,3 +1,35 @@
+function urlJoin(...args) {
+    // Ensure all parts are strings and trim whitespace
+    const parts = args.map(part => String(part).trim());
+    if (parts.length === 0) return '';
+
+    // Handle the base URL separately
+    let joined = parts[0];
+
+    for (let i = 1; i < parts.length; i++) {
+        let part = parts[i];
+        if (!part) continue; // Skip empty/null parts
+
+        // Avoid double slashes
+        if (joined.endsWith('/')) {
+            joined = joined.slice(0, -1);
+        }
+        if (part.startsWith('/')) {
+            part = part.slice(1);
+        }
+        joined = `${joined}/${part}`;
+    }
+
+    // Ensure the final URL doesn't end with a slash if the last part didn't
+    // (unless it's just the base URL like "http://example.com/")
+    const lastPart = parts[parts.length - 1];
+    if (joined !== parts[0] && !lastPart.endsWith('/') && joined.endsWith('/')) {
+         joined = joined.slice(0, -1);
+    }
+
+    return joined;
+}
+
 export default class ChorusAPI {
     constructor(baseURL, apiKey = null) {
         this.baseURL = baseURL;
@@ -19,7 +51,8 @@ export default class ChorusAPI {
         const queryString = Object.keys(queryParams)
             .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(queryParams[key])}`)
             .join('&');
-        const url = `${this.baseURL}${endpoint}${queryString ? `?${queryString}` : ''}`; // Append query string
+        const baseEndpointUrl = urlJoin(this.baseURL, endpoint);
+        const url = `${baseEndpointUrl}${queryString ? `?${queryString}` : ''}`; // Append query string
 
         const options = {
             method,
@@ -27,6 +60,7 @@ export default class ChorusAPI {
                 'Content-Type': 'application/json',
                 ...headers,
             },
+            credentials: 'include', // Include credentials (cookies, authorization headers) for CORS requests
         };
 
         if (this.apiKey) {
@@ -260,13 +294,26 @@ export default class ChorusAPI {
      */
     async login(username, password) {
         const body = new URLSearchParams({ username, password });
-        const response = await fetch(`${this.baseURL}/token`, {
+        // Use urlJoin to construct the token URL
+        const tokenUrl = urlJoin(this.baseURL, '/token');
+        const response = await fetch(tokenUrl, {
             method: 'POST',
             body,
+            credentials: 'include', // Include credentials for CORS requests if needed by the server
         });
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            // Try to get more details from the error response
+            let errorBody;
+            try {
+                errorBody = await response.json();
+            } catch (e) {
+                errorBody = await response.text();
+            }
+            console.error("Login API Error Response:", errorBody);
+            throw new Error(`HTTP error! status: ${response.status}, details: ${JSON.stringify(errorBody)}`);
         }
         return response.json();
     }
 }
+
+export const chorusAPI = new ChorusAPI('http://170.9.230.52:8000/');
