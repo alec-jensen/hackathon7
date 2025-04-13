@@ -1,6 +1,5 @@
 body {
     background-color: var(--parchment);
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     color: var(--charcoal);
     display: flex;
     justify-content: center;
