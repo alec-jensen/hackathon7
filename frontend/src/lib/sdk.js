@@ -307,6 +307,7 @@ export default class ChorusAPI {
 
     /**
      * Gets paginated individual mood reports for a specific user within a project (using the stored token).
+     * * The times returned by this API route are good relative to each other, but are not real times.
      * @param {string} projectId - The ID of the project.
      * @param {string} userId - The ID of the user whose reports to fetch.
      * @param {number} [page=1] - The page number to retrieve.

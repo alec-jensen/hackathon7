@@ -17,7 +17,10 @@ import Layout from "../layouts/Layout.astro";
         </select>
         <div id="group-emotionbar-container">
             <h3>Group Emotion Over Time</h3>
-            <div class="emotion-gradient-bar"></div>
+            <div class="emotion-gradient-bar-wrapper">
+                <div class="emotion-gradient-bar"></div>
+                <div id="emotion-tooltip"></div>
+            </div>
             <div id="group-emotionbar-key">
                 <ul>
                     <li id="key-anger">Anger</li>
@@ -41,29 +44,48 @@ import Layout from "../layouts/Layout.astro";
     import { chorusAPI } from "../lib/sdk.js";
     import { navigate } from "astro:transitions/client";
 
-    // --- Emotion Color Map ---
-    const newNeutralColor = 'rgb(173, 216, 230)'; // Light Blue for Neutral
-    const noDataColor = 'rgb(220, 220, 220)';     // Specific Gray for No Data/Loading
+    const newNeutralColor = "rgb(173, 216, 230)";
+    const noDataColor = "rgb(220, 220, 220)";
 
     const emotionColorMap = {
-        anger: 'rgb(239, 83, 80)',
-        disgust: 'rgb(102, 187, 106)',
-        fear: 'rgb(66, 165, 245)',
-        happiness: 'rgb(255, 213, 79)',
-        happy: 'rgb(255, 213, 79)',
-        sadness: 'rgb(126, 87, 194)',
-        surprise: 'rgb(255, 167, 38)',
+        anger: "rgb(239, 83, 80)",
+        disgust: "rgb(102, 187, 106)",
+        fear: "rgb(66, 165, 245)",
+        happiness: "rgb(255, 213, 79)",
+        happy: "rgb(255, 213, 79)",
+        sadness: "rgb(126, 87, 194)",
+        surprise: "rgb(255, 167, 38)",
         neutral: newNeutralColor,
-        nodata: noDataColor // Add nodata key for easier lookup
+        nodata: noDataColor,
     };
-    // Use a helper function for color lookup
+
     function getColor(emotionKey: string): string {
-        return emotionColorMap[emotionKey.toLowerCase() as keyof typeof emotionColorMap] || noDataColor;
+        return (
+            emotionColorMap[
+                emotionKey.toLowerCase() as keyof typeof emotionColorMap
+            ] || noDataColor
+        );
     }
 
-    // --- Emotion Bar Logic ---
+    function parseTimeRangeToSeconds(timeRangeString: string): number {
+        const value = parseInt(timeRangeString.slice(0, -1));
+        const unit = timeRangeString.slice(-1).toLowerCase();
+        switch (unit) {
+            case "m":
+                return value * 60;
+            case "h":
+                return value * 60 * 60;
+            default:
+                return value;
+        }
+    }
 
-    function createEmotionGradient(emotionData: { time: number; emotion: string }[], dataDuration: number) {
+    let currentDataTimeRangeEnd: number | null = null; // Variable to store the end time of the current data view
+
+    function createEmotionGradient(
+        emotionData: { time: number; emotion: string }[],
+        dataDuration: number,
+    ) {
         emotionData.sort((a, b) => a.time - b.time);
 
         if (emotionData.length === 0) {
@@ -71,30 +93,44 @@ import Layout from "../layouts/Layout.astro";
         }
 
         const stops: { time: number; color: string }[] = [];
-        const maxTimeGapPercent = 15; // Threshold for showing 'no data' gap
-        const epsilon = 0.001; // Small offset for sharp transitions
+        const maxTimeGapPercent = 15;
+        const epsilon = 0.001;
 
-        // Handle gap at the start
         if (emotionData[0].time > 0) {
             if (emotionData[0].time > maxTimeGapPercent) {
                 stops.push({ time: 0, color: noDataColor });
-                stops.push({ time: Math.max(0, emotionData[0].time - epsilon), color: noDataColor });
+                stops.push({
+                    time: Math.max(0, emotionData[0].time - epsilon),
+                    color: noDataColor,
+                });
             } else {
-                stops.push({ time: 0, color: getColor(emotionData[0].emotion) });
+                stops.push({
+                    time: 0,
+                    color: getColor(emotionData[0].emotion),
+                });
             }
         } else {
-            stops.push({ time: 0, color: getColor(emotionData[0].emotion) });
+            stops.push({
+                time: 0,
+                color: getColor(emotionData[0].emotion),
+            });
         }
 
-        // Iterate through points to add stops and handle gaps
         for (let i = 0; i < emotionData.length; i++) {
             const currentPoint = emotionData[i];
             const currentColor = getColor(currentPoint.emotion);
 
-            const lastStopTime = stops.length > 0 ? stops[stops.length - 1].time : -1;
+            const lastStopTime =
+                stops.length > 0 ? stops[stops.length - 1].time : -1;
             if (currentPoint.time > lastStopTime) {
-                stops.push({ time: currentPoint.time, color: currentColor });
-            } else if (currentPoint.time === lastStopTime && stops[stops.length - 1].color !== currentColor) {
+                stops.push({
+                    time: currentPoint.time,
+                    color: currentColor,
+                });
+            } else if (
+                currentPoint.time === lastStopTime &&
+                stops[stops.length - 1].color !== currentColor
+            ) {
                 stops[stops.length - 1].color = currentColor;
             }
 
@@ -103,11 +139,20 @@ import Layout from "../layouts/Layout.astro";
                 const timeGap = nextPoint.time - currentPoint.time;
 
                 if (timeGap > maxTimeGapPercent) {
-                    const gapStartTime = Math.min(100, currentPoint.time + epsilon);
-                    const gapEndTime = Math.max(gapStartTime, nextPoint.time - epsilon);
+                    const gapStartTime = Math.min(
+                        100,
+                        currentPoint.time + epsilon,
+                    );
+                    const gapEndTime = Math.max(
+                        gapStartTime,
+                        nextPoint.time - epsilon,
+                    );
 
                     if (gapStartTime > currentPoint.time) {
-                        stops.push({ time: gapStartTime, color: currentColor });
+                        stops.push({
+                            time: gapStartTime,
+                            color: currentColor,
+                        });
                     }
                     stops.push({ time: gapStartTime, color: noDataColor });
                     stops.push({ time: gapEndTime, color: noDataColor });
@@ -115,32 +160,43 @@ import Layout from "../layouts/Layout.astro";
             }
         }
 
-        // Handle gap at the end
         const lastPoint = emotionData[emotionData.length - 1];
         if (lastPoint.time < 100) {
             if (100 - lastPoint.time > maxTimeGapPercent) {
-                const gapStartTime = Math.min(100, lastPoint.time + epsilon);
+                const gapStartTime = Math.min(
+                    100,
+                    lastPoint.time + epsilon,
+                );
                 if (gapStartTime > lastPoint.time) {
-                    stops.push({ time: gapStartTime, color: getColor(lastPoint.emotion) });
+                    stops.push({
+                        time: gapStartTime,
+                        color: getColor(lastPoint.emotion),
+                    });
                 }
                 stops.push({ time: gapStartTime, color: noDataColor });
                 stops.push({ time: 100, color: noDataColor });
             } else {
-                stops.push({ time: 100, color: getColor(lastPoint.emotion) });
+                stops.push({
+                    time: 100,
+                    color: getColor(lastPoint.emotion),
+                });
             }
         }
 
-        // --- Simplified Filtering and Formatting ---
         const finalStopStrings = [];
         stops.sort((a, b) => a.time - b.time);
 
         for (let i = 0; i < stops.length; i++) {
             const current = stops[i];
-            const timePercent = Math.max(0, Math.min(100, current.time)).toFixed(4);
+            const timePercent = Math.max(
+                0,
+                Math.min(100, current.time),
+            ).toFixed(4);
             const stopStr = `${current.color} ${timePercent}%`;
 
             if (finalStopStrings.length > 0) {
-                const prevStopStr = finalStopStrings[finalStopStrings.length - 1];
+                const prevStopStr =
+                    finalStopStrings[finalStopStrings.length - 1];
                 const [, prevTimePercentStr] = prevStopStr.split(" ");
 
                 if (`${timePercent}%` === prevTimePercentStr) {
@@ -154,7 +210,10 @@ import Layout from "../layouts/Layout.astro";
             finalStopStrings.push(stopStr);
         }
 
-        if (finalStopStrings.length === 0 || !finalStopStrings[0].endsWith(" 0.0000%")) {
+        if (
+            finalStopStrings.length === 0 ||
+            !finalStopStrings[0].endsWith(" 0.0000%")
+        ) {
             let firstColor = noDataColor;
             if (finalStopStrings.length > 0) {
                 const [color, timeStr] = finalStopStrings[0].split(" ");
@@ -164,86 +223,94 @@ import Layout from "../layouts/Layout.astro";
             }
             finalStopStrings.unshift(`${firstColor} 0.0000%`);
         }
-        if (finalStopStrings.length === 0 || !finalStopStrings[finalStopStrings.length - 1].endsWith(" 100.0000%")) {
+        if (
+            finalStopStrings.length === 0 ||
+            !finalStopStrings[finalStopStrings.length - 1].endsWith(
+                " 100.0000%",
+            )
+        ) {
             let lastColor = noDataColor;
             if (finalStopStrings.length > 0) {
-                const [color, timeStr] = finalStopStrings[finalStopStrings.length - 1].split(" ");
+                const [color, timeStr] =
+                    finalStopStrings[finalStopStrings.length - 1].split(" ");
                 if (parseFloat(timeStr) === 100) {
                     lastColor = color;
                 } else {
                     lastColor = color;
                 }
             }
-            const [, lastTimeStr] = finalStopStrings[finalStopStrings.length - 1].split(" ");
+            const [, lastTimeStr] =
+                finalStopStrings[finalStopStrings.length - 1].split(" ");
             if (parseFloat(lastTimeStr) < 100) {
                 finalStopStrings.push(`${lastColor} 100.0000%`);
             }
         }
 
-        const uniqueFinalStops = finalStopStrings.filter((stop, index, arr) => {
-            if (index === 0) return true;
-            return stop !== arr[index - 1];
-        });
+        const uniqueFinalStops = finalStopStrings.filter(
+            (stop, index, arr) => {
+                if (index === 0) return true;
+                return stop !== arr[index - 1];
+            },
+        );
 
-        console.log("Generated Gradient Stops:", uniqueFinalStops);
-        return `linear-gradient(to right, ${uniqueFinalStops.join(", ")})`;
-    }
-
-    // --- End Emotion Bar Logic ---
-
-    // Helper function to parse time range string (e.g., "5m", "1h") to seconds
-    function parseTimeRangeToSeconds(timeRangeString: string): number {
-        const value = parseInt(timeRangeString.slice(0, -1));
-        const unit = timeRangeString.slice(-1).toLowerCase();
-        switch (unit) {
-            case 'm': return value * 60;
-            case 'h': return value * 60 * 60;
-            default: return value;
+        if (uniqueFinalStops.length < 2) {
+            return `linear-gradient(to right, ${noDataColor}, ${noDataColor})`;
         }
+
+        const gradientString = `linear-gradient(to right, ${uniqueFinalStops.join(
+            ", ",
+        )})`;
+        return gradientString;
     }
 
-    // --- Data Loading Function ---
-    async function loadProjectData(projectId: string) {
+    async function loadProjectData(
+        projectId: string,
+        timeRangeStart: number,
+        timeRangeEnd: number,
+    ) {
         const projectNameElement = document.getElementById("project-name");
-        const projectDescriptionElement = document.getElementById("project-description");
+        const projectDescriptionElement = document.getElementById(
+            "project-description",
+        );
         const memberListElement = document.getElementById("member-list");
-        const groupEmotionBarElement = document.querySelector("#group-emotionbar-container .emotion-gradient-bar");
-        const timeRangeSelect = document.getElementById("time-range") as HTMLSelectElement;
+        const groupEmotionBarElement = document.querySelector(
+            "#group-emotionbar-container .emotion-gradient-bar",
+        ) as HTMLElement;
 
         projectNameElement.textContent = "Loading project...";
         projectDescriptionElement.textContent = "";
         memberListElement.innerHTML = "Loading members...";
         if (groupEmotionBarElement) {
             groupEmotionBarElement.style.backgroundImage = `linear-gradient(to right, ${noDataColor}, ${noDataColor})`;
+            groupEmotionBarElement.removeAttribute("data-min-ts");
+            groupEmotionBarElement.removeAttribute("data-duration");
         }
 
         try {
             const project = await chorusAPI.getProjectDetails(projectId);
             projectNameElement.textContent = project.name;
-            projectDescriptionElement.textContent = project.description || "No description available.";
+            projectDescriptionElement.textContent =
+                project.description || "No description available.";
 
             try {
                 const memberPromises = project.members.map((memberId) =>
-                    chorusAPI.getUserDetailsById(memberId)
+                    chorusAPI.getUserDetailsById(memberId),
                 );
                 const memberDetails = await Promise.all(memberPromises);
                 memberListElement.innerHTML = "";
                 memberDetails.forEach((user) => {
                     const memberDiv = document.createElement("div");
                     memberDiv.className = "member-item";
-                    const usernameText = document.createTextNode(user.username);
+                    const usernameText = document.createTextNode(
+                        user.username,
+                    );
                     memberDiv.appendChild(usernameText);
                     memberListElement.appendChild(memberDiv);
                 });
             } catch (userError) {
-                console.error("Error loading member details:", userError);
-                memberListElement.innerHTML = "<div class='error-message'>Error loading some member details.</div>";
+                memberListElement.innerHTML =
+                    "<div class='error-message'>Error loading some member details.</div>";
             }
-
-            const selectedTimeRangeValue = timeRangeSelect.value;
-            const timeRangeSeconds = parseTimeRangeToSeconds(selectedTimeRangeValue);
-            const timeRangeEnd = Math.floor(Date.now() / 1000);
-            const timeRangeStart = timeRangeEnd - timeRangeSeconds;
 
             const result = await chorusAPI.getProjectAverageEmotions(
                 projectId,
@@ -252,178 +319,283 @@ import Layout from "../layouts/Layout.astro";
             );
 
             const emotionData: { time: number; emotion: string }[] = [];
-            let dataDuration = 0; // Initialize dataDuration
-
-            console.log("Raw API Result:", result);
+            let dataDuration = 0;
+            let minDataTimestamp = Infinity;
+            let maxDataTimestamp = -Infinity;
 
             if (result && result.length > 0) {
-                let minDataTimestamp = Infinity;
-                let maxDataTimestamp = -Infinity;
                 const validTimestamps: number[] = [];
-
                 result.forEach((average) => {
                     const ts = Date.parse(average.interval) / 1000;
                     if (!isNaN(ts)) {
                         validTimestamps.push(ts);
                         minDataTimestamp = Math.min(minDataTimestamp, ts);
                         maxDataTimestamp = Math.max(maxDataTimestamp, ts);
-                    } else {
-                        console.warn("Invalid interval timestamp skipped during min/max calculation:", average.interval);
                     }
                 });
 
-                if (validTimestamps.length === 0) {
-                    console.warn("No valid timestamps found in API result. Cannot calculate percentages.");
-                } else {
-                    dataDuration = maxDataTimestamp - minDataTimestamp; // Assign calculated duration
-                    console.log(`Data Timestamp Range: ${new Date(minDataTimestamp * 1000).toISOString()} to ${new Date(maxDataTimestamp * 1000).toISOString()}`);
-                    console.log(`Actual Data Duration (seconds): ${dataDuration}`);
+                if (validTimestamps.length > 0) {
+                    dataDuration = maxDataTimestamp - minDataTimestamp;
 
-                    const validResults = result.filter(avg => !isNaN(Date.parse(avg.interval)));
+                    if (groupEmotionBarElement) {
+                        groupEmotionBarElement.setAttribute(
+                            "data-min-ts",
+                            minDataTimestamp.toString(),
+                        );
+                        groupEmotionBarElement.setAttribute(
+                            "data-duration",
+                            dataDuration.toString(),
+                        );
+                    }
 
+                    const validResults = result.filter(
+                        (avg) => !isNaN(Date.parse(avg.interval)),
+                    );
                     validResults.forEach((average, index) => {
-                        let dominantEmotion = 'nodata'; // Default to 'nodata'
+                        let dominantEmotion = "nodata";
                         let maxScore = -1;
-                        let allZero = true; // Flag to check if all scores are zero
+                        let allZero = true;
 
-                        // Check if average_emotions exists and is not null
                         if (average.average_emotions) {
-                            const emotionEntries = Object.entries(average.average_emotions);
-
-                            // Check if all scores are effectively zero
+                            const emotionEntries = Object.entries(
+                                average.average_emotions,
+                            );
                             if (emotionEntries.length > 0) {
-                                allZero = emotionEntries.every(([key, score]) => Number(score) <= 0.0001); // Use a small threshold for floating point comparison
+                                allZero = emotionEntries.every(
+                                    ([key, score]) =>
+                                        Number(score) <= 0.0001,
+                                );
                             } else {
-                                // If average_emotions is an empty object, treat as nodata
                                 allZero = true;
                             }
 
                             if (!allZero) {
-                                dominantEmotion = 'neutral'; // Reset to neutral only if scores are not all zero
-                                // Find the emotion with the highest score
+                                dominantEmotion = "neutral";
                                 for (const [emotion, score] of emotionEntries) {
-                                    const lowerEmotion = emotion.toLowerCase();
-                                    // Check if score is higher AND the emotion is recognized (in map, excluding 'nodata')
-                                    if (Number(score) > maxScore && emotionColorMap[lowerEmotion] && lowerEmotion !== 'nodata') {
+                                    const lowerEmotion =
+                                        emotion.toLowerCase();
+                                    if (
+                                        Number(score) > maxScore &&
+                                        emotionColorMap[lowerEmotion] &&
+                                        lowerEmotion !== "nodata"
+                                    ) {
                                         maxScore = Number(score);
-                                        dominantEmotion = lowerEmotion; // Store lowercase key
+                                        dominantEmotion = lowerEmotion;
                                     }
                                 }
-                                // If maxScore remained -1 (or very low), it defaults to 'neutral' from the reset above.
-                            } else {
-                                // All scores are zero, keep dominantEmotion as 'nodata'
-                                console.log(`[${index}] All emotion scores are zero for interval ${average.interval}, treating as 'nodata'.`);
                             }
-                        } else {
-                            // average_emotions is null or missing, keep dominantEmotion as 'nodata'
-                            console.warn(`[${index}] Average object missing or has null 'average_emotions' property:`, average);
                         }
 
-                        const intervalTimestamp = Date.parse(average.interval) / 1000;
-
+                        const intervalTimestamp =
+                            Date.parse(average.interval) / 1000;
                         let timePercentage = 0;
-
                         if (dataDuration > 0) {
-                            const relativeTime = intervalTimestamp - minDataTimestamp;
-                            timePercentage = Math.max(0, Math.min(100, (relativeTime / dataDuration) * 100));
-                            console.log(`[${index}] Interval: ${average.interval}, Timestamp: ${intervalTimestamp}, MinDataTS: ${minDataTimestamp}, Relative: ${relativeTime}, DataDuration: ${dataDuration}, Percentage: ${timePercentage}`);
-                        } else {
-                            if (validTimestamps.length === 1) {
-                                timePercentage = 50;
-                                console.log(`[${index}] Interval: ${average.interval}, Timestamp: ${intervalTimestamp}, DataDuration is 0 (single point), setting Percentage to 50`);
-                            } else if (validTimestamps.length > 1) {
-                                timePercentage = Math.max(0, Math.min(100, (index / (validTimestamps.length - 1)) * 100));
-                                console.log(`[${index}] Interval: ${average.interval}, Timestamp: ${intervalTimestamp}, DataDuration is 0 (multiple points), setting Percentage to ${timePercentage}`);
-                            }
+                            const relativeTime =
+                                intervalTimestamp - minDataTimestamp;
+                            timePercentage = Math.max(
+                                0,
+                                Math.min(
+                                    100,
+                                    (relativeTime / dataDuration) * 100,
+                                ),
+                            );
+                        } else if (validTimestamps.length === 1) {
+                            timePercentage = 50;
+                        } else if (validTimestamps.length > 1) {
+                            timePercentage = Math.max(
+                                0,
+                                Math.min(
+                                    100,
+                                    (index / (validTimestamps.length - 1)) *
+                                        100,
+                                ),
+                            );
                         }
-
-                        emotionData.push({ time: timePercentage, emotion: dominantEmotion });
+                        emotionData.push({
+                            time: timePercentage,
+                            emotion: dominantEmotion,
+                        });
                     });
                 }
-            } else {
-                console.warn("No average emotions data found in the API response or result array is empty:", result);
             }
 
-            console.log("Processed Emotion Data for Gradient:", emotionData);
-            const gradientStyle = createEmotionGradient(emotionData, dataDuration);
+            const gradientStyle = createEmotionGradient(
+                emotionData,
+                dataDuration,
+            );
             if (groupEmotionBarElement) {
-                groupEmotionBarElement.style.backgroundImage = gradientStyle;
-            } else {
-                console.error("Group emotion bar element not found after loading emotions!");
+                if (
+                    typeof gradientStyle === "string" &&
+                    gradientStyle.length > 0 &&
+                    gradientStyle.includes(",")
+                ) {
+                    groupEmotionBarElement.style.backgroundImage =
+                        gradientStyle;
+                    groupEmotionBarElement.style.display = "block";
+                } else {
+                    groupEmotionBarElement.style.backgroundImage = `linear-gradient(to right, ${noDataColor}, ${noDataColor})`;
+                    groupEmotionBarElement.style.display = "block";
+                }
             }
-
         } catch (error) {
-            console.error("Error loading project data:", error);
             projectNameElement.textContent = "Error";
-            projectDescriptionElement.textContent = "Failed to load project details.";
+            projectDescriptionElement.textContent =
+                "Failed to load project details.";
             memberListElement.innerHTML = "";
-            if (groupEmotionBarElement) groupEmotionBarElement.style.display = "none";
+            if (groupEmotionBarElement) {
+                groupEmotionBarElement.style.display = "none";
+                groupEmotionBarElement.removeAttribute("data-min-ts");
+                groupEmotionBarElement.removeAttribute("data-duration");
+            }
         }
     }
-    // --- End Data Loading Function ---
 
     document.addEventListener("astro:page-load", () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const projectId = urlParams.get("project_id");
+        const timeRangeFromUrl = urlParams.get("time_range");
+
+        const timeRangeSelect = document.getElementById(
+            "time-range",
+        ) as HTMLSelectElement;
+        const projectNameElement = document.getElementById("project-name");
+        const projectDescriptionElement = document.getElementById(
+            "project-description",
+        );
+        const memberListElement = document.getElementById("member-list");
+        const groupEmotionBarElement = document.querySelector(
+            "#group-emotionbar-container .emotion-gradient-bar",
+        ) as HTMLElement;
+        const barWrapper = document.querySelector(
+            ".emotion-gradient-bar-wrapper",
+        ) as HTMLElement;
+        const tooltipElement = document.getElementById(
+            "emotion-tooltip",
+        ) as HTMLElement;
+
+        if (
+            timeRangeFromUrl &&
+            [...timeRangeSelect.options].some(
+                (opt) => opt.value === timeRangeFromUrl,
+            )
+        ) {
+            timeRangeSelect.value = timeRangeFromUrl;
+        } else {
+            const defaultTimeRange = timeRangeSelect.value;
+            if (timeRangeFromUrl !== defaultTimeRange) {
+                const currentUrl = new URL(window.location.href);
+                currentUrl.searchParams.set("time_range", defaultTimeRange);
+                history.replaceState({}, "", currentUrl.toString());
+            }
+        }
+
+        const updateData = () => {
+            const selectedTimeRangeValue = timeRangeSelect.value;
+            const timeRangeSeconds = parseTimeRangeToSeconds(
+                selectedTimeRangeValue,
+            );
+            const timeRangeEnd = Math.floor(Date.now() / 1000);
+            const timeRangeStart = timeRangeEnd - timeRangeSeconds;
+            currentDataTimeRangeEnd = timeRangeEnd; // Store the end time
+
+            if (projectId) {
+                loadProjectData(projectId, timeRangeStart, timeRangeEnd);
+            }
+        };
+
         chorusAPI
             .isLoggedIn()
             .then((isLoggedIn) => {
                 if (!isLoggedIn) {
-                    setTimeout(() => {
-                        navigate("/login");
-                    }, 1000);
+                    setTimeout(() => navigate("/login"), 1000);
                 } else {
-                    const urlParams = new URLSearchParams(window.location.search);
-                    const projectId = urlParams.get("project_id");
-                    const timeRangeFromUrl = urlParams.get("time_range");
-
-                    const timeRangeSelect = document.getElementById("time-range") as HTMLSelectElement;
-                    const projectNameElement = document.getElementById("project-name");
-                    const projectDescriptionElement = document.getElementById("project-description");
-                    const memberListElement = document.getElementById("member-list");
-                    const groupEmotionBarElement = document.querySelector("#group-emotionbar-container .emotion-gradient-bar");
-
-                    if (timeRangeFromUrl && [...timeRangeSelect.options].some(opt => opt.value === timeRangeFromUrl)) {
-                        timeRangeSelect.value = timeRangeFromUrl;
-                    } else {
-                        const defaultTimeRange = timeRangeSelect.value;
-                        if (timeRangeFromUrl !== defaultTimeRange) {
-                            const currentUrl = new URL(window.location.href);
-                            currentUrl.searchParams.set('time_range', defaultTimeRange);
-                            history.replaceState({}, '', currentUrl.toString());
-                        }
-                    }
-
                     if (projectId) {
-                        loadProjectData(projectId);
+                        updateData();
 
-                        timeRangeSelect.addEventListener('change', (event) => {
-                            const newTimeRange = (event.target as HTMLSelectElement).value;
+                        timeRangeSelect.addEventListener("change", (event) => {
+                            const newTimeRange = (
+                                event.target as HTMLSelectElement
+                            ).value;
                             const currentUrl = new URL(window.location.href);
-                            currentUrl.searchParams.set('time_range', newTimeRange);
-                            history.pushState({}, '', currentUrl.toString());
-
-                            loadProjectData(projectId);
+                            currentUrl.searchParams.set(
+                                "time_range",
+                                newTimeRange,
+                            );
+                            history.pushState({}, "", currentUrl.toString());
+                            updateData();
                         });
 
+                        if (barWrapper && groupEmotionBarElement && tooltipElement) {
+                            barWrapper.addEventListener(
+                                "mousemove",
+                                (event) => {
+                                    // Use the stored end time and selected range, not data attributes
+                                    if (currentDataTimeRangeEnd !== null) {
+                                        const selectedTimeRangeValue = timeRangeSelect.value;
+                                        const durationSeconds = parseTimeRangeToSeconds(selectedTimeRangeValue);
+                                        const timeRangeEnd = currentDataTimeRangeEnd;
+                                        const timeRangeStart = timeRangeEnd - durationSeconds;
+
+                                        const rect = groupEmotionBarElement.getBoundingClientRect();
+                                        const x = event.clientX - rect.left;
+                                        const width = rect.width;
+                                        const percentage = Math.max(0, Math.min(100, (x / width) * 100));
+
+                                        // Calculate timestamp based on hover position within the selected time range
+                                        const currentTimestamp = timeRangeStart + (percentage / 100) * durationSeconds;
+
+                                        const date = new Date(currentTimestamp * 1000);
+
+                                        const options: Intl.DateTimeFormatOptions = {
+                                            year: 'numeric',
+                                            month: 'long',
+                                            day: 'numeric',
+                                            hour: 'numeric',
+                                            minute: '2-digit',
+                                            second: '2-digit',
+                                            hour12: true,
+                                            timeZone: 'America/Chicago',
+                                            timeZoneName: 'short'
+                                        };
+                                        const timeString = date.toLocaleString("en-US", options);
+
+                                        tooltipElement.textContent = timeString;
+                                        tooltipElement.style.display = "block";
+
+                                        const wrapperRect = barWrapper.getBoundingClientRect();
+                                        const tooltipWidth = tooltipElement.offsetWidth;
+                                        let tooltipX = event.clientX - wrapperRect.left - tooltipWidth / 2;
+                                        tooltipX = Math.max(0, Math.min(tooltipX, wrapperRect.width - tooltipWidth));
+
+                                        tooltipElement.style.left = `${tooltipX}px`;
+                                    } else {
+                                        // Don't show tooltip if the end time isn't set yet
+                                        tooltipElement.style.display = "none";
+                                    }
+                                },
+                            );
+
+                            barWrapper.addEventListener("mouseleave", () => {
+                                tooltipElement.style.display = "none";
+                            });
+                        }
                     } else {
-                        console.error("No project_id found in URL.");
                         projectNameElement.textContent = "Error";
-                        projectDescriptionElement.textContent = "Invalid project ID.";
+                        projectDescriptionElement.textContent =
+                            "Invalid project ID.";
                         memberListElement.innerHTML = "";
-                        if (groupEmotionBarElement) groupEmotionBarElement.style.display = "none";
+                        if (groupEmotionBarElement)
+                            groupEmotionBarElement.style.display = "none";
                     }
                 }
             })
             .catch((error) => {
-                console.error("Error checking login status:", error);
-                const projectNameElement = document.getElementById("project-name");
-                const projectDescriptionElement = document.getElementById("project-description");
-                const memberListElement = document.getElementById("member-list");
-                const groupEmotionBarElement = document.querySelector("#group-emotionbar-container .emotion-gradient-bar");
-
-                if (projectNameElement) projectNameElement.textContent = "Error";
-                if (projectDescriptionElement) projectDescriptionElement.textContent = "Could not verify login status.";
-                if (memberListElement) memberListElement.innerHTML = "";
-                if (groupEmotionBarElement) groupEmotionBarElement.style.display = "none";
+                projectNameElement.textContent = "Error";
+                projectDescriptionElement.textContent =
+                    "Could not verify login status.";
+                memberListElement.innerHTML = "";
+                if (groupEmotionBarElement)
+                    groupEmotionBarElement.style.display = "none";
             });
     });
 </script>
@@ -452,12 +624,35 @@ import Layout from "../layouts/Layout.astro";
         margin-bottom: 30px;
     }
 
+    .emotion-gradient-bar-wrapper {
+        position: relative;
+        width: 100%;
+        margin-bottom: 10px;
+    }
+
     .emotion-gradient-bar {
         width: 100%;
         border: 1px solid #ccc;
         border-radius: 5px;
         background-color: #eee;
         display: block;
+        height: 30px;
+        cursor: crosshair;
+    }
+
+    #emotion-tooltip {
+        display: none;
+        position: absolute;
+        background-color: rgba(0, 0, 0, 0.75);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        white-space: nowrap;
+        z-index: 10;
+        pointer-events: none;
+        bottom: 100%;
+        margin-bottom: 5px;
     }
 
     #group-emotionbar-container .emotion-gradient-bar {
