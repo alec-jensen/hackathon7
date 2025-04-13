@@ -204,6 +204,7 @@ async def get_mood_summary_from_llm(
             "- Mention any interesting trends, common feelings, or big differences you noticed.",
             "- Keep it a high-level overview.",
             "- *Do not* use the `ALARM:` prefix for group reports.",
+            "- Do not start your summary with any prefix, e.g. `Summary: ` or `Group Summary: `. Just start with the summary directly.",
         ]
     else:
         analysis_tasks.append("1. Evaluate Current State: What's the main feeling based on 'Current Average Emotions'? *Highlight the dominant emotion(s)*. How does it generally compare to the 'Neutral Mood Reference Baseline'? Use 'Recent Commits' for extra context.")

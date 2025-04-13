@@ -16,7 +16,7 @@ import Layout from "../layouts/Layout.astro";
             <option value="24h">Last 24 hours</option>
         </select>
         <div id="group-emotionbar-container">
-            <h3>Group Emotion Over Time</h3>
+            <h3>Group Mood Over Time</h3>
             <div class="emotion-gradient-bar-wrapper">
                 <div class="emotion-gradient-bar"></div>
                 <div id="emotion-tooltip"></div>
@@ -34,6 +34,11 @@ import Layout from "../layouts/Layout.astro";
                 </ul>
             </div>
         </div>
+
+        <p id="group-mood-summary">
+            <strong>Group Mood Summary:</strong>
+            <span id="group-mood-text">Loading...</span>
+        </p>
 
         <h2>Members</h2>
         <div id="member-list">Loading members...</div>
@@ -276,10 +281,12 @@ import Layout from "../layouts/Layout.astro";
         const groupEmotionBarElement = document.querySelector(
             "#group-emotionbar-container .emotion-gradient-bar",
         ) as HTMLElement;
+        const groupMoodTextElement = document.getElementById("group-mood-text"); // Get the span for group mood
 
         projectNameElement.textContent = "Loading project...";
         projectDescriptionElement.textContent = "";
         memberListElement.innerHTML = "Loading members...";
+        if (groupMoodTextElement) groupMoodTextElement.textContent = "Loading..."; // Reset group mood text
         if (groupEmotionBarElement) {
             groupEmotionBarElement.style.backgroundImage = `linear-gradient(to right, ${noDataColor}, ${noDataColor})`;
             groupEmotionBarElement.removeAttribute("data-min-ts");
@@ -292,6 +299,27 @@ import Layout from "../layouts/Layout.astro";
             projectDescriptionElement.textContent =
                 project.description || "No description available.";
 
+            // Fetch latest group report summary
+            try {
+                const groupReports = await chorusAPI.getGroupReports(projectId, 1, 1);
+                if (groupMoodTextElement) {
+                    if (groupReports && groupReports.length > 0) {
+                        groupMoodTextElement.textContent = groupReports[0].mood_summary || "No summary available.";
+                        // Optionally handle group alarm: groupReports[0].is_alarm
+                    } else {
+                        groupMoodTextElement.textContent = "No recent group report found.";
+                        groupMoodTextElement.style.fontStyle = "italic";
+                    }
+                }
+            } catch (groupReportError) {
+                console.error("Error loading group report:", groupReportError);
+                if (groupMoodTextElement) {
+                    groupMoodTextElement.textContent = "Error loading group summary.";
+                    groupMoodTextElement.style.color = "red";
+                }
+            }
+
+            // Fetch member details and individual reports
             try {
                 const memberPromises = project.members.map((memberId) =>
                     chorusAPI.getUserDetailsById(memberId),
@@ -302,13 +330,13 @@ import Layout from "../layouts/Layout.astro";
                 // Fetch reports for each member
                 const memberReportPromises = memberDetails.map(async (user) => {
                     try {
-                        // Fetch first page (latest) reports for this user in this project
+                        // Fetch first page (latest) report for this user in this project
                         // Note: API currently doesn't support time range filtering here.
                         const reports = await chorusAPI.getIndividualReports(
                             projectId,
                             user.user_id,
                             1,
-                            5, // Fetch latest 5 reports for brevity
+                            1, // Fetch only the latest report
                         );
                         return { user, reports };
                     } catch (reportError) {
@@ -328,28 +356,28 @@ import Layout from "../layouts/Layout.astro";
                     usernameHeader.textContent = user.username;
                     memberContainer.appendChild(usernameHeader);
 
-                    const reportsList = document.createElement("ul");
-                    reportsList.className = "report-list";
+                    // Create a paragraph for the report summary/status
+                    const reportParagraph = document.createElement("p");
+                    reportParagraph.className = "report-summary";
 
                     if (error) {
-                        const errorItem = document.createElement("li");
-                        errorItem.textContent = "Error loading reports.";
-                        errorItem.style.color = "red";
-                        reportsList.appendChild(errorItem);
+                        reportParagraph.textContent = "Error loading report.";
+                        reportParagraph.style.color = "red";
                     } else if (reports && reports.length > 0) {
-                        reports.forEach((report) => {
-                            const reportItem = document.createElement("li");
-                            const reportDate = new Date(report.report_timestamp).toLocaleString(); // Format timestamp
-                            reportItem.innerHTML = `<strong>${reportDate}:</strong> ${report.mood_summary || "No summary available."}`;
-                            reportsList.appendChild(reportItem);
-                        });
+                        const report = reports[0]; // Get the single latest report
+                        if (report.is_alarm) {
+                            reportParagraph.style.color = "red";
+                            reportParagraph.style.fontWeight = "bold"; // Make alarms stand out
+                            reportParagraph.textContent = report.alarm_message || "Alarm triggered (no message).";
+                        } else {
+                            reportParagraph.textContent = report.mood_summary || "No summary available.";
+                        }
                     } else {
-                        const noReportsItem = document.createElement("li");
-                        noReportsItem.textContent = "No recent reports found.";
-                        reportsList.appendChild(noReportsItem);
+                        reportParagraph.textContent = "No recent report found.";
+                        reportParagraph.style.fontStyle = "italic"; // Indicate lack of data
                     }
 
-                    memberContainer.appendChild(reportsList);
+                    memberContainer.appendChild(reportParagraph);
                     memberListElement.appendChild(memberContainer);
                 });
 
@@ -488,6 +516,10 @@ import Layout from "../layouts/Layout.astro";
             projectDescriptionElement.textContent =
                 "Failed to load project details.";
             memberListElement.innerHTML = "";
+            if (groupMoodTextElement) { // Also update group mood on general error
+                groupMoodTextElement.textContent = "Error loading data.";
+                groupMoodTextElement.style.color = "red";
+            }
             if (groupEmotionBarElement) {
                 groupEmotionBarElement.style.display = "none";
                 groupEmotionBarElement.removeAttribute("data-min-ts");
@@ -786,36 +818,33 @@ import Layout from "../layouts/Layout.astro";
 
     .member-item h4 {
         margin-top: 0;
-        margin-bottom: 10px;
+        margin-bottom: 5px; /* Reduced margin */
         font-size: 18px;
         color: #333;
     }
 
-    .report-list {
-        list-style-type: none;
-        padding-left: 10px; /* Indent reports slightly */
-        margin-top: 10px;
+    /* Style for the report paragraph */
+    .report-summary {
+        margin-top: 0;
         margin-bottom: 0;
         font-size: 14px;
-    }
-
-    .report-list li {
-        margin-bottom: 8px; /* Spacing between reports */
-        padding-left: 15px; /* Indent report text */
-        position: relative;
         color: #555;
-    }
-
-    .report-list li::before {
-        content: "•"; /* Bullet point */
-        position: absolute;
-        left: 0;
-        top: 0;
-        color: #888;
+        padding-left: 5px; /* Optional slight indent */
     }
 
     #member-list .error-message {
         color: red;
         font-weight: bold;
+    }
+
+    #group-mood-summary {
+        margin-top: 10px; /* Add some space above the summary */
+        margin-bottom: 20px;
+        font-size: 16px;
+        color: #333;
+    }
+
+    #group-mood-summary strong {
+        margin-right: 5px;
     }
 </style>
