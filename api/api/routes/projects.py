@@ -249,68 +249,18 @@ async def get_project_average_mood(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid Unix timestamp format")
 
-    print(f"Start date: {start_date}, End date: {end_date}")
-
-    # Aggregation pipeline to calculate average mood score over 60-second intervals
-    # pipeline = [
-    #     {
-    #         "$match": {
-    #             "user_id": {"$in": project["members"]},
-    #             "received_at": {"$gte": start_date, "$lt": end_date}
-    #         }
-    #     },
-    #     {
-    #         "$set": {
-    #             "interval": {
-    #                 "$dateTrunc": {
-    #                     "date": "$received_at",
-    #                     "unit": "second",
-    #                     "binSize": 60,
-    #                 }
-    #             }
-    #         }
-    #     },
-    #     {
-    #         "$group": {
-    #             "_id": "$interval",
-    #             "average_angry": {"$avg": "$emotions.angry"},
-    #             "average_disgust": {"$avg": "$emotions.disgust"},
-    #             "average_fear": {"$avg": "$emotions.fear"},
-    #             "average_happy": {"$avg": "$emotions.happy"},
-    #             "average_sad": {"$avg": "$emotions.sad"},
-    #             "average_surprise": {"$avg": "$emotions.surprise"},
-    #             "average_neutral": {"$avg": "$emotions.neutral"},
-    #         }
-    #     },
-    #     {
-    #         "$project": {
-    #             "_id": 0,
-    #             "interval": "$_id",
-    #             "average_emotions": {
-    #                 "angry": "$average_angry",
-    #                 "disgust": "$average_disgust",
-    #                 "fear": "$average_fear",
-    #                 "happy": "$average_happy",
-    #                 "sad": "$average_sad",
-    #                 "surprise": "$average_surprise",
-    #                 "neutral": "$average_neutral",
-    #             },
-    #         }
-    #     },
-    #     {"$sort": {"interval": 1}},
-    # ]
+    start_minute_bound = start_date.replace(second=0, microsecond=0)
+    end_minute_bound = end_date.replace(second=0, microsecond=0)
 
     pipeline = [
         {
-            "$match": {
-                "received_at": {
-                    "$gte": start_date,
-                    "$lte": end_date
-                }
+            "$match": { # Match the project members and time range
+                "user_id": {"$in": project["members"]},
+                "received_at": {"$gte": start_date, "$lte": end_date},
             }
         },
         {
-            "$set": {
+            "$set": { # Set the interval to the start of the minute
                 "interval": {
                     "$dateTrunc": {
                         "date": "$received_at",
@@ -321,20 +271,20 @@ async def get_project_average_mood(
             }
         },
         {
-            "$densify": {
+            "$densify": { # Fill in the gaps in the time series
                 "field": "interval",
                 "range": {
                     "step": 1,
                     "unit": "minute",
                     "bounds": [
-                        {"$dateTrunc": {"date": start_date, "unit": "minute"}},
-                        {"$dateTrunc": {"date": end_date, "unit": "minute"}},
+                        {"$dateTrunc": start_minute_bound},
+                        {"$dateTrunc": end_minute_bound},
                     ],
                 },
             }
         },
         {
-            "$group": {
+            "$group": { # Group by the interval and calculate the average mood
                 "_id": "$interval",
                 "average_angry": {"$avg": "$emotions.angry"},
                 "average_disgust": {"$avg": "$emotions.disgust"},
@@ -346,7 +296,7 @@ async def get_project_average_mood(
             }
         },
         {
-            "$project": {
+            "$project": { # Project the results to include the interval and average emotions
                 "_id": 0,
                 "interval": "$_id",
                 "average_emotions": {
@@ -360,7 +310,20 @@ async def get_project_average_mood(
                 },
             }
         },
-        {"$sort": {"interval": 1}},
+        {"$sort": {"interval": 1}}, # Sort by interval in ascending order
+        {
+            "$match": { # Filter out intervals where all emotions are None
+                "$or": [
+                    {"average_emotions.angry": {"$ne": None}},
+                    {"average_emotions.disgust": {"$ne": None}},
+                    {"average_emotions.fear": {"$ne": None}},
+                    {"average_emotions.happy": {"$ne": None}},
+                    {"average_emotions.sad": {"$ne": None}},
+                    {"average_emotions.surprise": {"$ne": None}},
+                    {"average_emotions.neutral": {"$ne": None}},
+                ]
+            }
+        },
     ]
 
     # The result is now a list of interval averages
