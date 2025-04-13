@@ -270,8 +270,8 @@ async def get_project_average_mood(
                 "interval": {
                     "$dateTrunc": {
                         "date": "$received_at",
-                        "unit": "minute",
-                        "binSize": 1,
+                        "unit": "second",
+                        "binSize": 15,
                     }
                 }
             }
@@ -280,8 +280,8 @@ async def get_project_average_mood(
             "$densify": {  # Fill in the gaps in the time series
                 "field": "interval",
                 "range": {
-                    "step": 1,
-                    "unit": "minute",
+                    "step": 15,
+                    "unit": "second",
                     "bounds": [
                         start_minute_bound,
                         end_minute_bound,

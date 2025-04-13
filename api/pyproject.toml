@@ -19,5 +19,6 @@ dependencies = [
     "pydantic[email]>=2.11.3",
     "python-jose>=3.4.0",
     "python-multipart>=0.0.20",
+    "slack-sdk>=3.35.0",
     "uvicorn>=0.34.0",
 ]
