@@ -63,6 +63,11 @@ import "../styles/style.css";
                         <p>Owner: ${ownerName}</p>
                         <a href="/project?project_id=${project.project_id}">View Project</a>
                     `;
+                    chorusAPI.getUserDetails().then((userInfo) => {
+                        if (project.owner_id == userInfo.user_id) {
+                            projectItem.innerHTML += '<a href="/project?project_id=${project.project_id}" style="color: var(--crimson-red)">Delete Project</a>';
+                        }
+                    });
                     projectList.appendChild(projectItem);
                 })
             });
@@ -83,7 +88,7 @@ import "../styles/style.css";
         .catch((error) => {
             console.error("Dashboard: Error checking login status:", error);
         });
-
+        
         refresh();
         
         document.getElementById("create-project-form")?.addEventListener("submit", (event) => {
@@ -95,8 +100,8 @@ import "../styles/style.css";
                 chorusAPI.createProject(name);
                 document.getElementById('addPopup')?.close();
                 setTimeout(() => {
-                    navigate("/dashboard");
-                }, 500);
+                    refresh();
+                }, 600);
             }
         });
     });
