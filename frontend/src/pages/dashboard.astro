@@ -20,15 +20,17 @@ import "../styles/style.css";
         <div>
             <h2>Create project</h2>
             <div>
-                <input id="projectName" type="text" style=" border-radius: 5px; margin: 20px; border: 2px solid teal;" placeholder="Project name">
-                <br>
-                <button
-                    class="close-btn"
-                    onclick="this.closest('dialog').close()"
-                    style="background: none;border: none;cursor: pointer;padding: 1.5rem;color: var(--crimson-red);}"
-                    >Cancel</button
-                >
-                <Button id="confirm-button">Confirm</Button>
+                <form id="create-project-form">
+                    <input id="projectName" type="text" style=" border-radius: 5px; margin: 20px; border: 2px solid teal;" placeholder="Project name">
+                    <br>
+                    <button
+                        class="close-btn"
+                        onclick="this.closest('dialog').close()"
+                        style="background: none;border: none;cursor: pointer;padding: 1.5rem;color: var(--crimson-red);}"
+                        >Cancel</button
+                    >
+                    <Button id="confirm-button">Confirm</Button>
+                </form>
             </div>
         </div>
     </Modal>
@@ -76,9 +78,8 @@ import "../styles/style.css";
                 console.error("Dashboard: Error fetching projects:", error);
             });
 
-        document.getElementById("confirm-button")?.addEventListener("onclick", function(event){
+        document.getElementById("create-project-form")?.addEventListener("submit", (event) =>{
             event.preventDefault();
-            console.log("asdf");
             let name = document.getElementById("projectName")?.value;
             alert(name);
         });
