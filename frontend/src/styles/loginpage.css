@@ -7,8 +7,11 @@ body {
 }
 
 #login-form {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
     background-color: var(--misty-aqua);
-    padding: 2rem;
+    padding: 0 2rem;
     border-radius: 8px;
     box-shadow: var(--shadow);
     max-width: 400px;
@@ -20,6 +23,11 @@ body {
     color: var(--pirate-teal);
     text-align: center;
     letter-spacing: 1px;
+}
+
+#login-form a {
+    text-align: center;
+    margin-top: 1rem;
 }
 
 #login-form input {
