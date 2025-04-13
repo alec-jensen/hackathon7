@@ -18,16 +18,22 @@ import pymongo  # Import pymongo for sorting
 router = APIRouter()
 
 
+class CreateProjectRequest(BaseModel):  # Add this model
+    name: str
+
+
 class UpdateProjectRequest(BaseModel):
     name: Optional[str] = None
 
 
 @router.post("/")
-async def create_project(name: str, current_user=Depends(get_current_user)):
+async def create_project(
+    request_data: CreateProjectRequest, current_user=Depends(get_current_user)
+):  # Modify signature
     project_id = str(uuid.uuid4())
     project_data = {
         "project_id": project_id,
-        "name": name,
+        "name": request_data.name,  # Get name from request_data
         "owner_id": current_user.user_id,
         "members": [current_user.user_id],
     }
