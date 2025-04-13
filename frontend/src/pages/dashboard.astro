@@ -94,7 +94,9 @@ import "../styles/style.css";
             } else {
                 chorusAPI.createProject(name);
                 document.getElementById('addPopup')?.close();
-                refresh();
+                setTimeout(() => {
+                    navigate("/dashboard");
+                }, 500);
             }
         });
     });
