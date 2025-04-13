@@ -248,15 +248,65 @@ async def get_project_average_mood(
             end_date = datetime.fromtimestamp(end_time, tz=timezone.utc)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid Unix timestamp format")
-    
+
     print(f"Start date: {start_date}, End date: {end_date}")
 
     # Aggregation pipeline to calculate average mood score over 60-second intervals
+    # pipeline = [
+    #     {
+    #         "$match": {
+    #             "user_id": {"$in": project["members"]},
+    #             "received_at": {"$gte": start_date, "$lt": end_date}
+    #         }
+    #     },
+    #     {
+    #         "$set": {
+    #             "interval": {
+    #                 "$dateTrunc": {
+    #                     "date": "$received_at",
+    #                     "unit": "second",
+    #                     "binSize": 60,
+    #                 }
+    #             }
+    #         }
+    #     },
+    #     {
+    #         "$group": {
+    #             "_id": "$interval",
+    #             "average_angry": {"$avg": "$emotions.angry"},
+    #             "average_disgust": {"$avg": "$emotions.disgust"},
+    #             "average_fear": {"$avg": "$emotions.fear"},
+    #             "average_happy": {"$avg": "$emotions.happy"},
+    #             "average_sad": {"$avg": "$emotions.sad"},
+    #             "average_surprise": {"$avg": "$emotions.surprise"},
+    #             "average_neutral": {"$avg": "$emotions.neutral"},
+    #         }
+    #     },
+    #     {
+    #         "$project": {
+    #             "_id": 0,
+    #             "interval": "$_id",
+    #             "average_emotions": {
+    #                 "angry": "$average_angry",
+    #                 "disgust": "$average_disgust",
+    #                 "fear": "$average_fear",
+    #                 "happy": "$average_happy",
+    #                 "sad": "$average_sad",
+    #                 "surprise": "$average_surprise",
+    #                 "neutral": "$average_neutral",
+    #             },
+    #         }
+    #     },
+    #     {"$sort": {"interval": 1}},
+    # ]
+
     pipeline = [
         {
             "$match": {
-                "user_id": {"$in": project["members"]},
-                "received_at": {"$gte": start_date, "$lt": end_date}
+                "received_at": {
+                    "$gte": start_date,
+                    "$lte": end_date
+                }
             }
         },
         {
@@ -264,10 +314,23 @@ async def get_project_average_mood(
                 "interval": {
                     "$dateTrunc": {
                         "date": "$received_at",
-                        "unit": "second",
-                        "binSize": 60,
+                        "unit": "minute",
+                        "binSize": 1,
                     }
                 }
+            }
+        },
+        {
+            "$densify": {
+                "field": "interval",
+                "range": {
+                    "step": 1,
+                    "unit": "minute",
+                    "bounds": [
+                        {"$dateTrunc": {"date": start_date, "unit": "minute"}},
+                        {"$dateTrunc": {"date": end_date, "unit": "minute"}},
+                    ],
+                },
             }
         },
         {
