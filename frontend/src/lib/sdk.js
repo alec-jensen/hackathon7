@@ -60,7 +60,6 @@ export default class ChorusAPI {
                 'Content-Type': 'application/json',
                 ...headers,
             },
-            credentials: 'include', // Include credentials (cookies, authorization headers) for CORS requests
         };
 
         if (this.apiKey) {
@@ -294,12 +293,10 @@ export default class ChorusAPI {
      */
     async login(username, password) {
         const body = new URLSearchParams({ username, password });
-        // Use urlJoin to construct the token URL
         const tokenUrl = urlJoin(this.baseURL, '/token');
         const response = await fetch(tokenUrl, {
             method: 'POST',
             body,
-            credentials: 'include', // Include credentials for CORS requests if needed by the server
         });
         if (!response.ok) {
             // Try to get more details from the error response
