@@ -21,7 +21,8 @@ import AniButton from "../components/Button.astro"
                 </AniButton>
             </div>
             <a href="/login">or, login here</a>
-            <p id="login-error"></p> <!-- Error message placeholder -->
+            <p id="signup-error"></p> <!-- Error message placeholder -->
+            <p id="signup-success"></p> <!-- Success message placeholder -->
         </form>
     </div>
 </Layout>
@@ -31,19 +32,32 @@ import AniButton from "../components/Button.astro"
     import { navigate } from "astro:transitions/client";
     
     document.addEventListener("astro:page-load", () => {
-        chorusAPI.isLoggedIn().then(isLoggedIn => {
-            if (isLoggedIn) {
-                navigate('/dashboard');
-            }
-        }).catch(error => {
-            console.error('Error checking login status:', error);
-        });
+        let signupSuccess = document.getElementById('signup-success');
+
+        chorusAPI
+            .isLoggedIn()
+            .then((isLoggedIn) => {
+                if (isLoggedIn) {
+                    setTimeout(() => {
+                        // Redirect to dashboard after 1 second
+                        window.location.href = "/dashboard";
+                    }, 1000);
+
+                    if (signupSuccess) {
+                        signupSuccess.textContent = 'You are already logged in. Redirecting to dashboard...';
+                        console.log('User is already logged in. Redirecting to dashboard...');
+                    }
+                }
+            })
+            .catch((error) => {
+                console.error("Login: Error checking login status:", error);
+            });
 
         function handleSignup(event) {
             const form = event.target;
             const usernameInput = form.querySelector('#username');
             const passwordInput = form.querySelector('#password');
-            const errorElement = form.querySelector('#login-error');
+            const errorElement = form.querySelector('#signup-error');
 
             const username = usernameInput.value;
             const password = passwordInput.value;

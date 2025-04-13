@@ -2,21 +2,30 @@
 import Layout from "../layouts/Layout.astro";
 ---
 
-<Layout />
+<Layout>
+</Layout>
 
 <script>
     import { chorusAPI } from "../lib/sdk.js";
+    import { navigate } from "astro:transitions/client";
 
     document.addEventListener("astro:page-load", () => {
+        console.log("Dashboard: astro:page-load triggered"); // Add log
         chorusAPI
             .isLoggedIn()
             .then((isLoggedIn) => {
+                console.log("Dashboard: Login check result:", isLoggedIn); // Add log
                 if (!isLoggedIn) {
-                    window.location.href = "/login";
+                    console.log("Dashboard: NOT logged in, navigating to /login"); // Add log
+                    navigate("/login");
+                } else {
+                    console.log("Dashboard: User IS logged in."); // Add log
                 }
             })
             .catch((error) => {
-                console.error("Error checking login status:", error);
+                console.error("Dashboard: Error checking login status:", error);
+                // Decide if an error should also redirect to login
+                // navigate("/login");
             });
     });
 </script>

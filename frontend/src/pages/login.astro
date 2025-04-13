@@ -22,6 +22,7 @@ import AniButton from "../components/Button.astro"
             </div>
             <a href="/signup">or, sign up here</a>
             <p id="login-error"></p> <!-- Error message placeholder -->
+            <p id="login-success"></p> <!-- Success message placeholder -->
         </form>
     </div>
 </Layout>
@@ -31,13 +32,26 @@ import AniButton from "../components/Button.astro"
     import { navigate } from "astro:transitions/client";
 
     document.addEventListener("astro:page-load", () => {
-        chorusAPI.isLoggedIn().then(isLoggedIn => {
-            if (isLoggedIn) {
-                navigate('/dashboard');
-            }
-        }).catch(error => {
-            console.error('Error checking login status:', error);
-        });
+        let loginSuccess = document.getElementById('login-success');
+
+        chorusAPI
+            .isLoggedIn()
+            .then((isLoggedIn) => {
+                if (isLoggedIn) {
+                    setTimeout(() => {
+                        // Redirect to dashboard after 1 second
+                        window.location.href = "/dashboard";
+                    }, 1000);
+
+                    if (loginSuccess) {
+                        loginSuccess.textContent = 'You are already logged in. Redirecting to dashboard...';
+                        console.log('User is already logged in. Redirecting to dashboard...');
+                    }
+                }
+            })
+            .catch((error) => {
+                console.error("Login: Error checking login status:", error);
+            });
 
         function handleLogin(event) {
             event.preventDefault(); // Prevent default form submission
