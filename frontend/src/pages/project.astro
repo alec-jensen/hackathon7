@@ -297,19 +297,65 @@ import Layout from "../layouts/Layout.astro";
                     chorusAPI.getUserDetailsById(memberId),
                 );
                 const memberDetails = await Promise.all(memberPromises);
-                memberListElement.innerHTML = "";
-                memberDetails.forEach((user) => {
-                    const memberDiv = document.createElement("div");
-                    memberDiv.className = "member-item";
-                    const usernameText = document.createTextNode(
-                        user.username,
-                    );
-                    memberDiv.appendChild(usernameText);
-                    memberListElement.appendChild(memberDiv);
+                memberListElement.innerHTML = ""; // Clear loading message
+
+                // Fetch reports for each member
+                const memberReportPromises = memberDetails.map(async (user) => {
+                    try {
+                        // Fetch first page (latest) reports for this user in this project
+                        // Note: API currently doesn't support time range filtering here.
+                        const reports = await chorusAPI.getIndividualReports(
+                            projectId,
+                            user.user_id,
+                            1,
+                            5, // Fetch latest 5 reports for brevity
+                        );
+                        return { user, reports };
+                    } catch (reportError) {
+                        console.error(`Error loading reports for user ${user.username}:`, reportError);
+                        return { user, reports: [], error: true }; // Return user data even if reports fail
+                    }
                 });
+
+                const membersWithReports = await Promise.all(memberReportPromises);
+
+                // Render members and their reports
+                membersWithReports.forEach(({ user, reports, error }) => {
+                    const memberContainer = document.createElement("div");
+                    memberContainer.className = "member-item";
+
+                    const usernameHeader = document.createElement("h4");
+                    usernameHeader.textContent = user.username;
+                    memberContainer.appendChild(usernameHeader);
+
+                    const reportsList = document.createElement("ul");
+                    reportsList.className = "report-list";
+
+                    if (error) {
+                        const errorItem = document.createElement("li");
+                        errorItem.textContent = "Error loading reports.";
+                        errorItem.style.color = "red";
+                        reportsList.appendChild(errorItem);
+                    } else if (reports && reports.length > 0) {
+                        reports.forEach((report) => {
+                            const reportItem = document.createElement("li");
+                            const reportDate = new Date(report.report_timestamp).toLocaleString(); // Format timestamp
+                            reportItem.innerHTML = `<strong>${reportDate}:</strong> ${report.mood_summary || "No summary available."}`;
+                            reportsList.appendChild(reportItem);
+                        });
+                    } else {
+                        const noReportsItem = document.createElement("li");
+                        noReportsItem.textContent = "No recent reports found.";
+                        reportsList.appendChild(noReportsItem);
+                    }
+
+                    memberContainer.appendChild(reportsList);
+                    memberListElement.appendChild(memberContainer);
+                });
+
             } catch (userError) {
                 memberListElement.innerHTML =
-                    "<div class='error-message'>Error loading some member details.</div>";
+                    "<div class='error-message'>Error loading member details.</div>";
             }
 
             const result = await chorusAPI.getProjectAverageEmotions(
@@ -721,8 +767,8 @@ import Layout from "../layouts/Layout.astro";
     }
 
     h2 {
-        margin-top: 20px;
-        margin-bottom: 10px;
+        margin-top: 30px; /* Increased top margin */
+        margin-bottom: 15px; /* Increased bottom margin */
         font-size: 20px;
     }
 
@@ -730,13 +776,46 @@ import Layout from "../layouts/Layout.astro";
         padding-left: 0;
     }
 
-    #member-list > div,
-    #member-list .member-item {
-        margin-bottom: 15px;
-        display: block;
+    .member-item {
+        margin-bottom: 25px; /* Increased spacing between members */
+        padding: 15px;
+        border: 1px solid #eee;
+        border-radius: 8px;
+        background-color: #f9f9f9;
+    }
+
+    .member-item h4 {
+        margin-top: 0;
+        margin-bottom: 10px;
+        font-size: 18px;
+        color: #333;
+    }
+
+    .report-list {
+        list-style-type: none;
+        padding-left: 10px; /* Indent reports slightly */
+        margin-top: 10px;
+        margin-bottom: 0;
+        font-size: 14px;
+    }
+
+    .report-list li {
+        margin-bottom: 8px; /* Spacing between reports */
+        padding-left: 15px; /* Indent report text */
+        position: relative;
+        color: #555;
+    }
+
+    .report-list li::before {
+        content: "•"; /* Bullet point */
+        position: absolute;
+        left: 0;
+        top: 0;
+        color: #888;
     }
 
     #member-list .error-message {
         color: red;
+        font-weight: bold;
     }
 </style>

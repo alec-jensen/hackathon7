@@ -19,6 +19,7 @@ class UpdateUserRequest(BaseModel):
     # Note: Password updates might require a separate endpoint or current password verification
 
 class PublicUserInfo(BaseModel):
+    user_id: str
     username: str
 
 router = APIRouter()
@@ -56,7 +57,7 @@ async def get_public_user_info(user_id: str):
     user_data = await users_collection.find_one({"user_id": user_id})
     if not user_data:
         raise HTTPException(status_code=404, detail="User not found")
-    return PublicUserInfo(username=user_data["username"])
+    return PublicUserInfo(user_id=user_id, username=user_data["username"])
 
 @router.get("/me", response_model=User)
 async def get_user_details(current_user: User = Depends(get_current_user)):
