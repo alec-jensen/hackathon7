@@ -17,17 +17,17 @@ import UserDropdown from "./UserDropdown.astro";
     }
     
     .logo {
-        font-size: 1rem;
-        font-weight: bold;
-        color: var(--golden-treasure);
-        text-shadow: 1px 1px 2px var(--charcoal);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
     }
 </style>
 
 <header class="title-bar">
     <a href="/dashboard">
         <div class="logo">
-            <Image src={Logo} alt="Chorus" width={64} height={16} />
+            <Image src={Logo} alt="Chorus" width={200} height={40} />
         </div>
     </a>
     <div class="user">

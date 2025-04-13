@@ -53,14 +53,20 @@ import "../styles/style.css";
             }
             
             response.projects.forEach((project) => {
-                const projectItem = document.createElement("div");
-                projectItem.className = "project-item";
-                projectItem.innerHTML = `
+                // Get project owner name
+                chorusAPI
+                .getUserDetailsById(project.owner_id)
+                .then((ownerResponse) => {
+                    const ownerName = ownerResponse.username;
+                    const projectItem = document.createElement("div");
+                    projectItem.className = "project-item";
+                    projectItem.innerHTML = `
                         <h2>${project.name}</h2>
-                        <p>${project.description}</p>
+                        <p>Owner: ${ownerName}</p>
                         <a href="/project?project_id=${project.project_id}">View Project</a>
                     `;
-                projectList.appendChild(projectItem);
+                    projectList.appendChild(projectItem);
+                })
             });
         })
         .catch((error) => {

@@ -13,6 +13,7 @@ dependencies = [
     "moviepy==1.0.3",
     "numpy<2",
     "opencv-contrib-python>=3.3.0.9",
+    "pystray>=0.19.5",
     "tensorflow[and-cuda]==2.15.*",
     "torch>=2.0.1",
 ]

@@ -85,7 +85,7 @@ import Layout from "../layouts/Layout.astro";
         }
     }
 
-    let currentDataTimeRangeEnd: number | null = null; // Variable to store the end time of the current data view
+    let currentDataTimeRangeEnd: number | null = null;
 
     function createEmotionGradient(
         emotionData: { time: number; emotion: string }[],
@@ -268,25 +268,15 @@ import Layout from "../layouts/Layout.astro";
         return gradientString;
     }
 
-    async function loadProjectData(
+    async function loadTimeDependentData(
         projectId: string,
         timeRangeStart: number,
         timeRangeEnd: number,
     ) {
-        const projectNameElement = document.getElementById("project-name");
-        const projectDescriptionElement = document.getElementById(
-            "project-description",
-        );
-        const memberListElement = document.getElementById("member-list");
         const groupEmotionBarElement = document.querySelector(
             "#group-emotionbar-container .emotion-gradient-bar",
         ) as HTMLElement;
-        const groupMoodTextElement = document.getElementById("group-mood-text"); // Get the span for group mood
 
-        projectNameElement.textContent = "Loading project...";
-        projectDescriptionElement.textContent = "";
-        memberListElement.innerHTML = "Loading members...";
-        if (groupMoodTextElement) groupMoodTextElement.textContent = "Loading..."; // Reset group mood text
         if (groupEmotionBarElement) {
             groupEmotionBarElement.style.backgroundImage = `linear-gradient(to right, ${noDataColor}, ${noDataColor})`;
             groupEmotionBarElement.removeAttribute("data-min-ts");
@@ -294,98 +284,6 @@ import Layout from "../layouts/Layout.astro";
         }
 
         try {
-            const project = await chorusAPI.getProjectDetails(projectId);
-            projectNameElement.textContent = project.name;
-            projectDescriptionElement.textContent =
-                project.description || "No description available.";
-
-            // Fetch latest group report summary
-            try {
-                const groupReports = await chorusAPI.getGroupReports(projectId, 1, 1);
-                if (groupMoodTextElement) {
-                    if (groupReports && groupReports.length > 0) {
-                        groupMoodTextElement.textContent = groupReports[0].mood_summary || "No summary available.";
-                        // Optionally handle group alarm: groupReports[0].is_alarm
-                    } else {
-                        groupMoodTextElement.textContent = "No recent group report found.";
-                        groupMoodTextElement.style.fontStyle = "italic";
-                    }
-                }
-            } catch (groupReportError) {
-                console.error("Error loading group report:", groupReportError);
-                if (groupMoodTextElement) {
-                    groupMoodTextElement.textContent = "Error loading group summary.";
-                    groupMoodTextElement.style.color = "red";
-                }
-            }
-
-            // Fetch member details and individual reports
-            try {
-                const memberPromises = project.members.map((memberId) =>
-                    chorusAPI.getUserDetailsById(memberId),
-                );
-                const memberDetails = await Promise.all(memberPromises);
-                memberListElement.innerHTML = ""; // Clear loading message
-
-                // Fetch reports for each member
-                const memberReportPromises = memberDetails.map(async (user) => {
-                    try {
-                        // Fetch first page (latest) report for this user in this project
-                        // Note: API currently doesn't support time range filtering here.
-                        const reports = await chorusAPI.getIndividualReports(
-                            projectId,
-                            user.user_id,
-                            1,
-                            1, // Fetch only the latest report
-                        );
-                        return { user, reports };
-                    } catch (reportError) {
-                        console.error(`Error loading reports for user ${user.username}:`, reportError);
-                        return { user, reports: [], error: true }; // Return user data even if reports fail
-                    }
-                });
-
-                const membersWithReports = await Promise.all(memberReportPromises);
-
-                // Render members and their reports
-                membersWithReports.forEach(({ user, reports, error }) => {
-                    const memberContainer = document.createElement("div");
-                    memberContainer.className = "member-item";
-
-                    const usernameHeader = document.createElement("h4");
-                    usernameHeader.textContent = user.username;
-                    memberContainer.appendChild(usernameHeader);
-
-                    // Create a paragraph for the report summary/status
-                    const reportParagraph = document.createElement("p");
-                    reportParagraph.className = "report-summary";
-
-                    if (error) {
-                        reportParagraph.textContent = "Error loading report.";
-                        reportParagraph.style.color = "red";
-                    } else if (reports && reports.length > 0) {
-                        const report = reports[0]; // Get the single latest report
-                        if (report.is_alarm) {
-                            reportParagraph.style.color = "red";
-                            reportParagraph.style.fontWeight = "bold"; // Make alarms stand out
-                            reportParagraph.textContent = report.alarm_message || "Alarm triggered (no message).";
-                        } else {
-                            reportParagraph.textContent = report.mood_summary || "No summary available.";
-                        }
-                    } else {
-                        reportParagraph.textContent = "No recent report found.";
-                        reportParagraph.style.fontStyle = "italic"; // Indicate lack of data
-                    }
-
-                    memberContainer.appendChild(reportParagraph);
-                    memberListElement.appendChild(memberContainer);
-                });
-
-            } catch (userError) {
-                memberListElement.innerHTML =
-                    "<div class='error-message'>Error loading member details.</div>";
-            }
-
             const result = await chorusAPI.getProjectAverageEmotions(
                 projectId,
                 timeRangeStart,
@@ -512,18 +410,130 @@ import Layout from "../layouts/Layout.astro";
                 }
             }
         } catch (error) {
+            console.error("Error loading group average emotions:", error);
+            if (groupEmotionBarElement) {
+                groupEmotionBarElement.style.backgroundImage = `linear-gradient(to right, ${noDataColor}, ${noDataColor})`;
+                groupEmotionBarElement.style.display = 'block';
+            }
+        }
+    }
+
+    async function loadStaticProjectData(projectId: string) {
+        const projectNameElement = document.getElementById("project-name");
+        const projectDescriptionElement = document.getElementById(
+            "project-description",
+        );
+        const memberListElement = document.getElementById("member-list");
+        const groupMoodTextElement = document.getElementById("group-mood-text");
+
+        projectNameElement.textContent = "Loading project...";
+        projectDescriptionElement.textContent = "";
+        memberListElement.innerHTML = "Loading members...";
+        if (groupMoodTextElement) groupMoodTextElement.textContent = "Loading...";
+
+        try {
+            const project = await chorusAPI.getProjectDetails(projectId);
+            projectNameElement.textContent = project.name;
+            projectDescriptionElement.textContent =
+                project.description || "No description available.";
+
+            try {
+                const groupReports = await chorusAPI.getGroupReports(projectId, 1, 1);
+                if (groupMoodTextElement) {
+                    if (groupReports && groupReports.length > 0) {
+                        groupMoodTextElement.textContent = groupReports[0].mood_summary || "No summary available.";
+                        groupMoodTextElement.style.fontStyle = "normal";
+                        groupMoodTextElement.style.color = "#333";
+                    } else {
+                        groupMoodTextElement.textContent = "No recent group report found.";
+                        groupMoodTextElement.style.fontStyle = "italic";
+                        groupMoodTextElement.style.color = "#555";
+                    }
+                }
+            } catch (groupReportError) {
+                console.error("Error loading group report:", groupReportError);
+                if (groupMoodTextElement) {
+                    groupMoodTextElement.textContent = "Error loading group summary.";
+                    groupMoodTextElement.style.color = "red";
+                }
+            }
+
+            try {
+                const memberPromises = project.members.map((memberId) =>
+                    chorusAPI.getUserDetailsById(memberId),
+                );
+                const memberDetails = await Promise.all(memberPromises);
+                memberListElement.innerHTML = "";
+
+                const memberReportPromises = memberDetails.map(async (user) => {
+                    try {
+                        const reports = await chorusAPI.getIndividualReports(
+                            projectId,
+                            user.user_id,
+                            1,
+                            1,
+                        );
+                        return { user, reports };
+                    } catch (reportError) {
+                        console.error(`Error loading reports for user ${user.username}:`, reportError);
+                        return { user, reports: [], error: true };
+                    }
+                });
+
+                const membersWithReports = await Promise.all(memberReportPromises);
+
+                membersWithReports.forEach(({ user, reports, error }) => {
+                    const memberContainer = document.createElement("div");
+                    memberContainer.className = "member-item";
+
+                    const usernameHeader = document.createElement("h4");
+                    usernameHeader.textContent = user.username;
+                    memberContainer.appendChild(usernameHeader);
+
+                    const reportParagraph = document.createElement("p");
+                    reportParagraph.className = "report-summary";
+
+                    if (error) {
+                        reportParagraph.textContent = "Error loading report.";
+                        reportParagraph.style.color = "red";
+                    } else if (reports && reports.length > 0) {
+                        const report = reports[0];
+                        if (report.is_alarm) {
+                            reportParagraph.style.color = "red";
+                            reportParagraph.style.fontWeight = "bold";
+                            reportParagraph.textContent = report.alarm_message || "Alarm triggered (no message).";
+                        } else {
+                            reportParagraph.textContent = report.mood_summary || "No summary available.";
+                        }
+                    } else {
+                        reportParagraph.textContent = "No recent report found.";
+                        reportParagraph.style.fontStyle = "italic";
+                    }
+
+                    memberContainer.appendChild(reportParagraph);
+                    memberListElement.appendChild(memberContainer);
+                });
+
+            } catch (userError) {
+                memberListElement.innerHTML =
+                    "<div class='error-message'>Error loading member details.</div>";
+            }
+
+        } catch (error) {
             projectNameElement.textContent = "Error";
             projectDescriptionElement.textContent =
                 "Failed to load project details.";
             memberListElement.innerHTML = "";
-            if (groupMoodTextElement) { // Also update group mood on general error
+            const groupMoodTextElement = document.getElementById("group-mood-text");
+            const groupEmotionBarElement = document.querySelector(
+                "#group-emotionbar-container .emotion-gradient-bar",
+            ) as HTMLElement;
+            if (groupMoodTextElement) {
                 groupMoodTextElement.textContent = "Error loading data.";
                 groupMoodTextElement.style.color = "red";
             }
             if (groupEmotionBarElement) {
                 groupEmotionBarElement.style.display = "none";
-                groupEmotionBarElement.removeAttribute("data-min-ts");
-                groupEmotionBarElement.removeAttribute("data-duration");
             }
         }
     }
@@ -567,17 +577,17 @@ import Layout from "../layouts/Layout.astro";
             }
         }
 
-        const updateData = () => {
+        const initialLoad = () => {
             const selectedTimeRangeValue = timeRangeSelect.value;
-            const timeRangeSeconds = parseTimeRangeToSeconds(
-                selectedTimeRangeValue,
-            );
+            const timeRangeSeconds = parseTimeRangeToSeconds(selectedTimeRangeValue);
             const timeRangeEnd = Math.floor(Date.now() / 1000);
             const timeRangeStart = timeRangeEnd - timeRangeSeconds;
-            currentDataTimeRangeEnd = timeRangeEnd; // Store the end time
+            currentDataTimeRangeEnd = timeRangeEnd;
 
             if (projectId) {
-                loadProjectData(projectId, timeRangeStart, timeRangeEnd);
+                loadStaticProjectData(projectId).then(() => {
+                    loadTimeDependentData(projectId, timeRangeStart, timeRangeEnd);
+                });
             }
         };
 
@@ -588,26 +598,26 @@ import Layout from "../layouts/Layout.astro";
                     setTimeout(() => navigate("/login"), 1000);
                 } else {
                     if (projectId) {
-                        updateData();
+                        initialLoad();
 
                         timeRangeSelect.addEventListener("change", (event) => {
-                            const newTimeRange = (
-                                event.target as HTMLSelectElement
-                            ).value;
+                            const newTimeRangeValue = (event.target as HTMLSelectElement).value;
                             const currentUrl = new URL(window.location.href);
-                            currentUrl.searchParams.set(
-                                "time_range",
-                                newTimeRange,
-                            );
+                            currentUrl.searchParams.set("time_range", newTimeRangeValue);
                             history.pushState({}, "", currentUrl.toString());
-                            updateData();
+
+                            const timeRangeSeconds = parseTimeRangeToSeconds(newTimeRangeValue);
+                            const timeRangeEnd = Math.floor(Date.now() / 1000);
+                            const timeRangeStart = timeRangeEnd - timeRangeSeconds;
+                            currentDataTimeRangeEnd = timeRangeEnd;
+
+                            loadTimeDependentData(projectId, timeRangeStart, timeRangeEnd);
                         });
 
                         if (barWrapper && groupEmotionBarElement && tooltipElement) {
                             barWrapper.addEventListener(
                                 "mousemove",
                                 (event) => {
-                                    // Use the stored end time and selected range, not data attributes
                                     if (currentDataTimeRangeEnd !== null) {
                                         const selectedTimeRangeValue = timeRangeSelect.value;
                                         const durationSeconds = parseTimeRangeToSeconds(selectedTimeRangeValue);
@@ -619,7 +629,6 @@ import Layout from "../layouts/Layout.astro";
                                         const width = rect.width;
                                         const percentage = Math.max(0, Math.min(100, (x / width) * 100));
 
-                                        // Calculate timestamp based on hover position within the selected time range
                                         const currentTimestamp = timeRangeStart + (percentage / 100) * durationSeconds;
 
                                         const date = new Date(currentTimestamp * 1000);
@@ -647,7 +656,6 @@ import Layout from "../layouts/Layout.astro";
 
                                         tooltipElement.style.left = `${tooltipX}px`;
                                     } else {
-                                        // Don't show tooltip if the end time isn't set yet
                                         tooltipElement.style.display = "none";
                                     }
                                 },
@@ -799,8 +807,8 @@ import Layout from "../layouts/Layout.astro";
     }
 
     h2 {
-        margin-top: 30px; /* Increased top margin */
-        margin-bottom: 15px; /* Increased bottom margin */
+        margin-top: 30px;
+        margin-bottom: 15px;
         font-size: 20px;
     }
 
@@ -809,7 +817,7 @@ import Layout from "../layouts/Layout.astro";
     }
 
     .member-item {
-        margin-bottom: 25px; /* Increased spacing between members */
+        margin-bottom: 25px;
         padding: 15px;
         border: 1px solid #eee;
         border-radius: 8px;
@@ -818,18 +826,17 @@ import Layout from "../layouts/Layout.astro";
 
     .member-item h4 {
         margin-top: 0;
-        margin-bottom: 5px; /* Reduced margin */
+        margin-bottom: 5px;
         font-size: 18px;
         color: #333;
     }
 
-    /* Style for the report paragraph */
     .report-summary {
         margin-top: 0;
         margin-bottom: 0;
         font-size: 14px;
         color: #555;
-        padding-left: 5px; /* Optional slight indent */
+        padding-left: 5px;
     }
 
     #member-list .error-message {
@@ -838,7 +845,7 @@ import Layout from "../layouts/Layout.astro";
     }
 
     #group-mood-summary {
-        margin-top: 10px; /* Add some space above the summary */
+        margin-top: 10px;
         margin-bottom: 20px;
         font-size: 16px;
         color: #333;
