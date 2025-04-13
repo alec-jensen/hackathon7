@@ -1,5 +1,10 @@
 ---
+interface Props {
+    href?: string;
+    target?: string;
+}
 
+const { href, target } = Astro.props as Props;
 ---
 
 <style>
@@ -19,6 +24,10 @@
     }
 
     .button {
+        display: inline-flex; /* Use flexbox for alignment */
+        align-items: center; /* Vertically center content */
+        gap: 0.5rem; /* Add space between text and icon */
+        text-decoration: none; /* Remove underline from links */
         background-color: var(--pirate-teal);
         color: var(--parchment);
         border: none;
@@ -63,6 +72,6 @@
     }
 </style>
 
-<button class="button">
+<a href={href} class="button" target={target}>
     <slot />
-</button>
+</a>

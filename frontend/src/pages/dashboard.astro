@@ -1,7 +1,22 @@
 ---
-import Layout from "../layouts/Layout.astro"
+import Layout from "../layouts/Layout.astro";
 ---
 
-<Layout>
-    
-</Layout>
+<Layout />
+
+<script>
+    import { chorusAPI } from "../lib/sdk.js";
+
+    document.addEventListener("astro:page-load", () => {
+        chorusAPI
+            .isLoggedIn()
+            .then((isLoggedIn) => {
+                if (!isLoggedIn) {
+                    window.location.href = "/login";
+                }
+            })
+            .catch((error) => {
+                console.error("Error checking login status:", error);
+            });
+    });
+</script>

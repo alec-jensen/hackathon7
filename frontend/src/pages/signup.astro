@@ -28,78 +28,81 @@ import AniButton from "../components/Button.astro"
 
 <script>
     import { chorusAPI } from '../lib/sdk.js';
+    import { navigate } from "astro:transitions/client";
+    
+    document.addEventListener("astro:page-load", () => {
+        chorusAPI.isLoggedIn().then(isLoggedIn => {
+            if (isLoggedIn) {
+                navigate('/dashboard');
+            }
+        }).catch(error => {
+            console.error('Error checking login status:', error);
+        });
 
-    chorusAPI.isLoggedIn().then(isLoggedIn => {
-        if (isLoggedIn) {
-            window.location.href = '/dashboard';
-        }
-    }).catch(error => {
-        console.error('Error checking login status:', error);
-    });
+        function handleSignup(event) {
+            event.preventDefault(); // Prevent default form submission
+            const form = event.target;
+            const usernameInput = form.querySelector('#username');
+            const passwordInput = form.querySelector('#password');
+            const errorElement = form.querySelector('#login-error');
 
-    function handleSignup(event) {
-        event.preventDefault(); // Prevent default form submission
-        const form = event.target;
-        const usernameInput = form.querySelector('#username');
-        const passwordInput = form.querySelector('#password');
-        const errorElement = form.querySelector('#login-error');
+            const username = usernameInput.value;
+            const password = passwordInput.value;
+            errorElement.textContent = ''; // Clear previous errors
 
-        const username = usernameInput.value;
-        const password = passwordInput.value;
-        errorElement.textContent = ''; // Clear previous errors
+            console.log('Attempting signup with:', { username, password });
 
-        console.log('Attempting signup with:', { username, password });
+            // Basic validation (optional, but good practice)
+            if (!username || !password) {
+                errorElement.textContent = 'Please enter both username and password.';
+                console.error('Username or password missing');
+                return;
+            }
 
-        // Basic validation (optional, but good practice)
-        if (!username || !password) {
-            errorElement.textContent = 'Please enter both username and password.';
-            console.error('Username or password missing');
-            return;
-        }
+            // Call createUser API method
+            chorusAPI.createUser(username, password)
+                .then(data => {
+                    console.log('Signup successful:', data);
+                    form.reset(); // Optionally clear the form
+                    
+                    chorusAPI.login(username, password)
+                        .then(loginData => {
+                            console.log('Login successful:', loginData);
+                            localStorage.setItem('token', loginData.access_token);
 
-        // Call createUser API method
-        chorusAPI.createUser(username, password)
-            .then(data => {
-                console.log('Signup successful:', data);
-                form.reset(); // Optionally clear the form
-                
-                chorusAPI.login(username, password)
-                    .then(loginData => {
-                        console.log('Login successful:', loginData);
-                        localStorage.setItem('token', loginData.access_token);
-
-                        window.location.href = '/dashboard';
-                    })
-                    .catch(loginError => {
-                        console.error('Login failed:', loginError);
-                        errorElement.textContent = 'Login failed after signup. Please try again.';
-                    });
-            })
-            .catch(error => {
-                console.error('Signup failed:', error);
-                let detail = 'Signup failed. Please try again.';
-                try {
-                    const match = error.message.match(/details: (.*)/);
-                    if (match && match[1]) {
-                        const errorDetails = JSON.parse(match[1]);
-                        if (errorDetails.detail) {
-                            detail = `Signup failed: ${errorDetails.detail}`;
+                            window.location.href = '/dashboard';
+                        })
+                        .catch(loginError => {
+                            console.error('Login failed:', loginError);
+                            errorElement.textContent = 'Login failed after signup. Please try again.';
+                        });
+                })
+                .catch(error => {
+                    console.error('Signup failed:', error);
+                    let detail = 'Signup failed. Please try again.';
+                    try {
+                        const match = error.message.match(/details: (.*)/);
+                        if (match && match[1]) {
+                            const errorDetails = JSON.parse(match[1]);
+                            if (errorDetails.detail) {
+                                detail = `Signup failed: ${errorDetails.detail}`;
+                            }
                         }
+                    } catch (parseError) {
+                        // Ignore if parsing fails, use the generic message
                     }
-                } catch (parseError) {
-                    // Ignore if parsing fails, use the generic message
-                }
-                errorElement.textContent = detail;
-            });
-    }
-
-    // Add event listener after the DOM is loaded
-    document.addEventListener('DOMContentLoaded', () => {
-        const signupForm = document.getElementById('signup-form');
-        if (signupForm) {
-            signupForm.addEventListener('submit', handleSignup);
-        } else {
-            console.error('Signup form not found');
+                    errorElement.textContent = detail;
+                });
         }
+
+        // Add event listener after the DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            const signupForm = document.getElementById('signup-form');
+            if (signupForm) {
+                signupForm.addEventListener('submit', handleSignup);
+            } else {
+                console.error('Signup form not found');
+            }
+        });
     });
 </script>

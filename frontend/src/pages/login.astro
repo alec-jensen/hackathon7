@@ -21,62 +21,65 @@ import AniButton from "../components/Button.astro"
                 </AniButton>
             </div>
             <a href="/signup">or, sign up here</a>
-             <p id="login-error"></p> <!-- Error message placeholder -->
+            <p id="login-error"></p> <!-- Error message placeholder -->
         </form>
     </div>
 </Layout>
 
 <script>
     import { chorusAPI } from '../lib/sdk.js';
+    import { navigate } from "astro:transitions/client";
+    
+    document.addEventListener("astro:page-load", () => {
+        chorusAPI.isLoggedIn().then(isLoggedIn => {
+            if (isLoggedIn) {
+                navigate('/dashboard');
+            }
+        }).catch(error => {
+            console.error('Error checking login status:', error);
+        });
 
-    chorusAPI.isLoggedIn().then(isLoggedIn => {
-        if (isLoggedIn) {
-            window.location.href = '/dashboard';
+        function handleLogin(event) {
+            event.preventDefault(); // Prevent default form submission
+            const form = event.target;
+            const usernameInput = form.querySelector('#username');
+            const passwordInput = form.querySelector('#password');
+            const errorElement = form.querySelector('#login-error');
+
+            const username = usernameInput.value;
+            const password = passwordInput.value;
+            errorElement.textContent = ''; // Clear previous errors
+
+            console.log('Attempting login with:', { username, password });
+
+            // Basic validation (optional, but good practice)
+            if (!username || !password) {
+                errorElement.textContent = 'Please enter both username and password.';
+                console.error('Username or password missing');
+                return;
+            }
+
+            chorusAPI.login(username, password)
+                .then(data => {
+                    console.log('Login successful:', data);
+                    localStorage.setItem('token', data.access_token);
+
+                    window.location.href = '/dashboard';
+                })
+                .catch(error => {
+                    console.error('Login failed:', error);
+                    errorElement.textContent = 'Login failed. Please check your credentials.';
+                });
         }
-    }).catch(error => {
-        console.error('Error checking login status:', error);
-    });
 
-    function handleLogin(event) {
-        event.preventDefault(); // Prevent default form submission
-        const form = event.target;
-        const usernameInput = form.querySelector('#username');
-        const passwordInput = form.querySelector('#password');
-        const errorElement = form.querySelector('#login-error');
-
-        const username = usernameInput.value;
-        const password = passwordInput.value;
-        errorElement.textContent = ''; // Clear previous errors
-
-        console.log('Attempting login with:', { username, password });
-
-        // Basic validation (optional, but good practice)
-        if (!username || !password) {
-            errorElement.textContent = 'Please enter both username and password.';
-            console.error('Username or password missing');
-            return;
-        }
-
-        chorusAPI.login(username, password)
-            .then(data => {
-                console.log('Login successful:', data);
-                localStorage.setItem('token', data.access_token);
-
-                window.location.href = '/dashboard';
-            })
-            .catch(error => {
-                console.error('Login failed:', error);
-                errorElement.textContent = 'Login failed. Please check your credentials.';
-            });
-    }
-
-    // Add event listener after the DOM is loaded
-    document.addEventListener('DOMContentLoaded', () => {
-        const loginForm = document.getElementById('login-form');
-        if (loginForm) {
-            loginForm.addEventListener('submit', handleLogin);
-        } else {
-            console.error('Login form not found');
-        }
+        // Add event listener after the DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            const loginForm = document.getElementById('login-form');
+            if (loginForm) {
+                loginForm.addEventListener('submit', handleLogin);
+            } else {
+                console.error('Login form not found');
+            }
+        });
     });
 </script>
