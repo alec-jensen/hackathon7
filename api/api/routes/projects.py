@@ -7,7 +7,7 @@ from ..database import projects_collection, users_collection, emotions_collectio
 import uuid
 from git import Repo, GitCommandError
 from datetime import datetime, timedelta, timezone
-from bson import ObjectId
+from bson.objectid import ObjectId
 import pymongo  # Import pymongo for sorting
 
 router = APIRouter()

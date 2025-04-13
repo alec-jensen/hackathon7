@@ -5,8 +5,8 @@ from ..auth import get_current_user, get_password_hash
 from ..database import users_collection, projects_collection
 import uuid
 import os
-from typing import Optional
-from bson import ObjectId  # Import ObjectId
+from typing import Optional, List  # Add List
+from bson.objectid import ObjectId  # Import ObjectId
 
 class CreateUserRequest(BaseModel):
     username: str
@@ -17,6 +17,9 @@ class UpdateUserRequest(BaseModel):
     username: Optional[str] = None
     email: Optional[str] = None
     # Note: Password updates might require a separate endpoint or current password verification
+
+class PublicUserInfo(BaseModel):
+    username: str
 
 router = APIRouter()
 
@@ -47,6 +50,13 @@ async def create_user(data: CreateUserRequest):
     }
     await users_collection.insert_one(user_data)
     return {"message": "User created successfully", "user_id": user_id}
+
+@router.get("/users/{user_id}", response_model=PublicUserInfo)
+async def get_public_user_info(user_id: str):
+    user_data = await users_collection.find_one({"user_id": user_id})
+    if not user_data:
+        raise HTTPException(status_code=404, detail="User not found")
+    return PublicUserInfo(username=user_data["username"])
 
 @router.get("/me", response_model=User)
 async def get_user_details(current_user: User = Depends(get_current_user)):

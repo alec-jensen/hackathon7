@@ -8,6 +8,7 @@ dependencies = [
     "aiohttp>=3.11.16",
     "apscheduler>=3.11.0",
     "bcrypt>=4.3.0",
+    "bson>=0.5.10",
     "dnspython>=2.7.0",
     "dotenv>=0.9.9",
     "fastapi>=0.115.12",

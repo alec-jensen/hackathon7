@@ -1,0 +1,60 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { chorusAPI } from '../lib/sdk.js';
+---
+
+<Layout>
+  <div id="project-container">
+    <h1>Loading project...</h1>
+  </div>
+</Layout>
+
+<script>
+    import { chorusAPI } from "../lib/sdk.js";
+    import { navigate } from "astro:transitions/client";
+
+    document.addEventListener("astro:page-load", () => {
+        chorusAPI
+            .isLoggedIn()
+            .then((isLoggedIn) => {
+                if (!isLoggedIn) {
+                    setTimeout(() => {
+                        // Redirect to login page after 1 second
+                        navigate("/login");
+                    }, 1000);
+                } else {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const projectId = urlParams.get("project_id");
+
+                    if (projectId) {
+                        chorusAPI
+                            .getProjectDetails(projectId)
+                            .then((project) => {
+                                const container = document.getElementById("project-container");
+                                container.innerHTML = `
+                                    <h1>${project.name}</h1>
+                                    <p>${project.description || "No description available."}</p>
+                                    <h2>Members</h2>
+                                    <ul>
+                                        ${project.members.map(memberId => `<li>User ID: ${memberId}</li>`).join("")}
+                                        <!-- Note: Displaying usernames requires an API endpoint or SDK function to resolve user IDs -->
+                                    </ul>
+                                `;
+                            })
+                            .catch((error) => {
+                                console.error("Error loading project details:", error);
+                                const container = document.getElementById("project-container");
+                                container.innerHTML = "<p>Failed to load project details.</p>";
+                            });
+                    } else {
+                        console.error("No project_id found in URL.");
+                        const container = document.getElementById("project-container");
+                        container.innerHTML = "<p>Invalid project ID.</p>";
+                    }
+                }
+            })
+            .catch((error) => {
+                console.error("Error checking login status:", error);
+            });
+    });
+</script>
