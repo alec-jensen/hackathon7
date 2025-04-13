@@ -7,7 +7,7 @@ import "../styles/style.css";
     <div id="project-container">
         <h1 id="project-name">Loading project...</h1>
         <p id="project-description"></p>
-        
+
         <select id="time-range">
             <option value="10m">Last 10 minutes</option>
             <option value="30m" selected>Last 30 minutes</option>
@@ -35,22 +35,29 @@ import "../styles/style.css";
                 </ul>
             </div>
         </div>
-        
+
         <p id="group-mood-summary">
             <strong>Group Mood Summary:</strong>
             <span id="group-mood-text">Loading...</span>
         </p>
-        
+
         <h2>Members</h2>
         <div id="add-member-section">
-            <input type="text" id="new-member-username" style="max-width: 25%; min-width: 300px" placeholder="Enter username to add" />
+            <input
+                type="text"
+                id="new-member-username"
+                style="max-width: 25%; min-width: 300px"
+                placeholder="Enter username to add"
+            />
             <button id="add-member-button">Add Member</button>
             <p id="add-member-message" class="message"></p>
         </div>
         <div id="member-list">Loading members...</div>
 
         <div id="project-actions-bottom">
-            <button id="delete-project-button" class="danger-button">Delete Project</button>
+            <button id="delete-project-button" class="danger-button"
+                >Delete Project</button
+            >
             <p id="delete-project-message" class="message"></p>
         </div>
     </div>
@@ -59,10 +66,10 @@ import "../styles/style.css";
 <script>
     import { chorusAPI } from "../lib/sdk.js";
     import { navigate } from "astro:transitions/client";
-    
+
     const newNeutralColor = "rgb(173, 216, 230)";
     const noDataColor = "rgb(220, 220, 220)";
-    
+
     const emotionColorMap = {
         anger: "rgb(239, 83, 80)",
         disgust: "rgb(102, 187, 106)",
@@ -74,45 +81,45 @@ import "../styles/style.css";
         neutral: newNeutralColor,
         nodata: noDataColor,
     };
-    
+
     function getColor(emotionKey: string): string {
         return (
-        emotionColorMap[
-        emotionKey.toLowerCase() as keyof typeof emotionColorMap
-        ] || noDataColor
+            emotionColorMap[
+                emotionKey.toLowerCase() as keyof typeof emotionColorMap
+            ] || noDataColor
         );
     }
-    
+
     function parseTimeRangeToSeconds(timeRangeString: string): number {
         const value = parseInt(timeRangeString.slice(0, -1));
         const unit = timeRangeString.slice(-1).toLowerCase();
         switch (unit) {
             case "m":
-            return value * 60;
+                return value * 60;
             case "h":
-            return value * 60 * 60;
+                return value * 60 * 60;
             default:
-            return value;
+                return value;
         }
     }
-    
+
     let currentDataTimeRangeEnd: number | null = null;
     let currentOwnerId: string | null = null; // Declare ownerId variable accessible to handlers
-    
+
     function createEmotionGradient(
-    emotionData: { time: number; emotion: string }[],
-    dataDuration: number,
+        emotionData: { time: number; emotion: string }[],
+        dataDuration: number,
     ) {
         emotionData.sort((a, b) => a.time - b.time);
-        
+
         if (emotionData.length === 0) {
             return `linear-gradient(to right, ${noDataColor}, ${noDataColor})`;
         }
-        
+
         const stops: { time: number; color: string }[] = [];
         const maxTimeGapPercent = 15;
         const epsilon = 0.001;
-        
+
         if (emotionData[0].time > 0) {
             if (emotionData[0].time > maxTimeGapPercent) {
                 stops.push({ time: 0, color: noDataColor });
@@ -132,39 +139,39 @@ import "../styles/style.css";
                 color: getColor(emotionData[0].emotion),
             });
         }
-        
+
         for (let i = 0; i < emotionData.length; i++) {
             const currentPoint = emotionData[i];
             const currentColor = getColor(currentPoint.emotion);
-            
+
             const lastStopTime =
-            stops.length > 0 ? stops[stops.length - 1].time : -1;
+                stops.length > 0 ? stops[stops.length - 1].time : -1;
             if (currentPoint.time > lastStopTime) {
                 stops.push({
                     time: currentPoint.time,
                     color: currentColor,
                 });
             } else if (
-            currentPoint.time === lastStopTime &&
-            stops[stops.length - 1].color !== currentColor
+                currentPoint.time === lastStopTime &&
+                stops[stops.length - 1].color !== currentColor
             ) {
                 stops[stops.length - 1].color = currentColor;
             }
-            
+
             if (i + 1 < emotionData.length) {
                 const nextPoint = emotionData[i + 1];
                 const timeGap = nextPoint.time - currentPoint.time;
-                
+
                 if (timeGap > maxTimeGapPercent) {
                     const gapStartTime = Math.min(
-                    100,
-                    currentPoint.time + epsilon,
+                        100,
+                        currentPoint.time + epsilon,
                     );
                     const gapEndTime = Math.max(
-                    gapStartTime,
-                    nextPoint.time - epsilon,
+                        gapStartTime,
+                        nextPoint.time - epsilon,
                     );
-                    
+
                     if (gapStartTime > currentPoint.time) {
                         stops.push({
                             time: gapStartTime,
@@ -176,14 +183,11 @@ import "../styles/style.css";
                 }
             }
         }
-        
+
         const lastPoint = emotionData[emotionData.length - 1];
         if (lastPoint.time < 100) {
             if (100 - lastPoint.time > maxTimeGapPercent) {
-                const gapStartTime = Math.min(
-                100,
-                lastPoint.time + epsilon,
-                );
+                const gapStartTime = Math.min(100, lastPoint.time + epsilon);
                 if (gapStartTime > lastPoint.time) {
                     stops.push({
                         time: gapStartTime,
@@ -199,23 +203,23 @@ import "../styles/style.css";
                 });
             }
         }
-        
+
         const finalStopStrings = [];
         stops.sort((a, b) => a.time - b.time);
-        
+
         for (let i = 0; i < stops.length; i++) {
             const current = stops[i];
             const timePercent = Math.max(
-            0,
-            Math.min(100, current.time),
+                0,
+                Math.min(100, current.time),
             ).toFixed(4);
             const stopStr = `${current.color} ${timePercent}%`;
-            
+
             if (finalStopStrings.length > 0) {
                 const prevStopStr =
-                finalStopStrings[finalStopStrings.length - 1];
+                    finalStopStrings[finalStopStrings.length - 1];
                 const [, prevTimePercentStr] = prevStopStr.split(" ");
-                
+
                 if (`${timePercent}%` === prevTimePercentStr) {
                     finalStopStrings[finalStopStrings.length - 1] = stopStr;
                     continue;
@@ -226,10 +230,10 @@ import "../styles/style.css";
             }
             finalStopStrings.push(stopStr);
         }
-        
+
         if (
-        finalStopStrings.length === 0 ||
-        !finalStopStrings[0].endsWith(" 0.0000%")
+            finalStopStrings.length === 0 ||
+            !finalStopStrings[0].endsWith(" 0.0000%")
         ) {
             let firstColor = noDataColor;
             if (finalStopStrings.length > 0) {
@@ -241,15 +245,15 @@ import "../styles/style.css";
             finalStopStrings.unshift(`${firstColor} 0.0000%`);
         }
         if (
-        finalStopStrings.length === 0 ||
-        !finalStopStrings[finalStopStrings.length - 1].endsWith(
-        " 100.0000%",
-        )
+            finalStopStrings.length === 0 ||
+            !finalStopStrings[finalStopStrings.length - 1].endsWith(
+                " 100.0000%",
+            )
         ) {
             let lastColor = noDataColor;
             if (finalStopStrings.length > 0) {
                 const [color, timeStr] =
-                finalStopStrings[finalStopStrings.length - 1].split(" ");
+                    finalStopStrings[finalStopStrings.length - 1].split(" ");
                 if (parseFloat(timeStr) === 100) {
                     lastColor = color;
                 } else {
@@ -257,56 +261,54 @@ import "../styles/style.css";
                 }
             }
             const [, lastTimeStr] =
-            finalStopStrings[finalStopStrings.length - 1].split(" ");
+                finalStopStrings[finalStopStrings.length - 1].split(" ");
             if (parseFloat(lastTimeStr) < 100) {
                 finalStopStrings.push(`${lastColor} 100.0000%`);
             }
         }
-        
-        const uniqueFinalStops = finalStopStrings.filter(
-        (stop, index, arr) => {
+
+        const uniqueFinalStops = finalStopStrings.filter((stop, index, arr) => {
             if (index === 0) return true;
             return stop !== arr[index - 1];
-        },
-        );
-        
+        });
+
         if (uniqueFinalStops.length < 2) {
             return `linear-gradient(to right, ${noDataColor}, ${noDataColor})`;
         }
-        
+
         const gradientString = `linear-gradient(to right, ${uniqueFinalStops.join(
-        ", ",
+            ", ",
         )})`;
         return gradientString;
     }
-    
+
     async function loadTimeDependentData(
-    projectId: string,
-    timeRangeStart: number,
-    timeRangeEnd: number,
+        projectId: string,
+        timeRangeStart: number,
+        timeRangeEnd: number,
     ) {
         const groupEmotionBarElement = document.querySelector(
-        "#group-emotionbar-container .emotion-gradient-bar",
+            "#group-emotionbar-container .emotion-gradient-bar",
         ) as HTMLElement;
-        
+
         if (groupEmotionBarElement) {
             groupEmotionBarElement.style.backgroundImage = `linear-gradient(to right, ${noDataColor}, ${noDataColor})`;
             groupEmotionBarElement.removeAttribute("data-min-ts");
             groupEmotionBarElement.removeAttribute("data-duration");
         }
-        
+
         try {
             const result = await chorusAPI.getProjectAverageEmotions(
-            projectId,
-            timeRangeStart,
-            timeRangeEnd,
+                projectId,
+                timeRangeStart,
+                timeRangeEnd,
             );
-            
+
             const emotionData: { time: number; emotion: string }[] = [];
             let dataDuration = 0;
             let minDataTimestamp = Infinity;
             let maxDataTimestamp = -Infinity;
-            
+
             if (result && result.length > 0) {
                 const validTimestamps: number[] = [];
                 result.forEach((average) => {
@@ -317,51 +319,49 @@ import "../styles/style.css";
                         maxDataTimestamp = Math.max(maxDataTimestamp, ts);
                     }
                 });
-                
+
                 if (validTimestamps.length > 0) {
                     dataDuration = maxDataTimestamp - minDataTimestamp;
-                    
+
                     if (groupEmotionBarElement) {
                         groupEmotionBarElement.setAttribute(
-                        "data-min-ts",
-                        minDataTimestamp.toString(),
+                            "data-min-ts",
+                            minDataTimestamp.toString(),
                         );
                         groupEmotionBarElement.setAttribute(
-                        "data-duration",
-                        dataDuration.toString(),
+                            "data-duration",
+                            dataDuration.toString(),
                         );
                     }
-                    
+
                     const validResults = result.filter(
-                    (avg) => !isNaN(Date.parse(avg.interval)),
+                        (avg) => !isNaN(Date.parse(avg.interval)),
                     );
                     validResults.forEach((average, index) => {
                         let dominantEmotion = "nodata";
                         let maxScore = -1;
                         let allZero = true;
-                        
+
                         if (average.average_emotions) {
                             const emotionEntries = Object.entries(
-                            average.average_emotions,
+                                average.average_emotions,
                             );
                             if (emotionEntries.length > 0) {
                                 allZero = emotionEntries.every(
-                                ([key, score]) =>
-                                Number(score) <= 0.0001,
+                                    ([key, score]) => Number(score) <= 0.0001,
                                 );
                             } else {
                                 allZero = true;
                             }
-                            
+
                             if (!allZero) {
                                 dominantEmotion = "neutral";
                                 for (const [emotion, score] of emotionEntries) {
-                                    const lowerEmotion =
-                                    emotion.toLowerCase();
+                                    const lowerEmotion = emotion.toLowerCase();
                                     if (
-                                    Number(score) > maxScore &&
-                                    emotionColorMap[lowerEmotion] &&
-                                    lowerEmotion !== "nodata"
+                                        Number(score) > maxScore &&
+                                        emotionColorMap[lowerEmotion] &&
+                                        lowerEmotion !== "nodata"
                                     ) {
                                         maxScore = Number(score);
                                         dominantEmotion = lowerEmotion;
@@ -369,30 +369,30 @@ import "../styles/style.css";
                                 }
                             }
                         }
-                        
+
                         const intervalTimestamp =
-                        Date.parse(average.interval) / 1000;
+                            Date.parse(average.interval) / 1000;
                         let timePercentage = 0;
                         if (dataDuration > 0) {
                             const relativeTime =
-                            intervalTimestamp - minDataTimestamp;
+                                intervalTimestamp - minDataTimestamp;
                             timePercentage = Math.max(
-                            0,
-                            Math.min(
-                            100,
-                            (relativeTime / dataDuration) * 100,
-                            ),
+                                0,
+                                Math.min(
+                                    100,
+                                    (relativeTime / dataDuration) * 100,
+                                ),
                             );
                         } else if (validTimestamps.length === 1) {
                             timePercentage = 50;
                         } else if (validTimestamps.length > 1) {
                             timePercentage = Math.max(
-                            0,
-                            Math.min(
-                            100,
-                            (index / (validTimestamps.length - 1)) *
-                            100,
-                            ),
+                                0,
+                                Math.min(
+                                    100,
+                                    (index / (validTimestamps.length - 1)) *
+                                        100,
+                                ),
                             );
                         }
                         emotionData.push({
@@ -402,19 +402,19 @@ import "../styles/style.css";
                     });
                 }
             }
-            
+
             const gradientStyle = createEmotionGradient(
-            emotionData,
-            dataDuration,
+                emotionData,
+                dataDuration,
             );
             if (groupEmotionBarElement) {
                 if (
-                typeof gradientStyle === "string" &&
-                gradientStyle.length > 0 &&
-                gradientStyle.includes(",")
+                    typeof gradientStyle === "string" &&
+                    gradientStyle.length > 0 &&
+                    gradientStyle.includes(",")
                 ) {
                     groupEmotionBarElement.style.backgroundImage =
-                    gradientStyle;
+                        gradientStyle;
                     groupEmotionBarElement.style.display = "block";
                 } else {
                     groupEmotionBarElement.style.backgroundImage = `linear-gradient(to right, ${noDataColor}, ${noDataColor})`;
@@ -425,7 +425,7 @@ import "../styles/style.css";
             console.error("Error loading group average emotions:", error);
             if (groupEmotionBarElement) {
                 groupEmotionBarElement.style.backgroundImage = `linear-gradient(to right, ${noDataColor}, ${noDataColor})`;
-                groupEmotionBarElement.style.display = 'block';
+                groupEmotionBarElement.style.display = "block";
             }
         }
     }
@@ -433,6 +433,37 @@ import "../styles/style.css";
     async function loadMemberList(projectId: string, ownerId: string | null) {
         const memberListElement = document.getElementById("member-list");
         memberListElement.innerHTML = "Loading members...";
+
+        let me: {
+            user_id: string;
+            username: string;
+            email: string | null;
+            disabled: boolean;
+            api_keys: Array<string>;
+        } | null = null;
+
+        chorusAPI.getUserDetails().then(
+            (userDetails) => {
+                me = userDetails;
+                if (userDetails && userDetails.user_id) {
+                    const currentUserId = userDetails.user_id;
+                    if (currentUserId === ownerId) {
+                        const addMemberSection =
+                            document.getElementById("add-member-section");
+                        if (addMemberSection)
+                            addMemberSection.style.display = "block";
+                    } else {
+                        const addMemberSection =
+                            document.getElementById("add-member-section");
+                        if (addMemberSection)
+                            addMemberSection.style.display = "none";
+                    }
+                }
+            },
+            (error) => {
+                console.error("Error fetching user details:", error);
+            },
+        );
 
         try {
             const project = await chorusAPI.getProjectDetails(projectId);
@@ -453,7 +484,10 @@ import "../styles/style.css";
                     );
                     return { user, reports };
                 } catch (reportError) {
-                    console.error(`Error loading reports for user ${user.username}:`, reportError);
+                    console.error(
+                        `Error loading reports for user ${user.username}:`,
+                        reportError,
+                    );
                     return { user, reports: [], error: true };
                 }
             });
@@ -479,15 +513,22 @@ import "../styles/style.css";
                 memberHeader.appendChild(usernameHeader);
 
                 if (ownerId && user.user_id !== ownerId) {
-                    const removeButton = document.createElement("button");
-                    removeButton.textContent = "Remove";
-                    removeButton.className = "remove-member-button danger-button";
-                    removeButton.dataset.userId = user.user_id;
-                    removeButton.dataset.username = user.username;
-                    removeButton.addEventListener('click', () => {
-                        removeMemberHandler(projectId, user.user_id, user.username);
-                    });
-                    memberHeader.appendChild(removeButton);
+                    if (me && me.user_id === ownerId) {
+                        const removeButton = document.createElement("button");
+                        removeButton.textContent = "Remove";
+                        removeButton.className =
+                            "remove-member-button danger-button";
+                        removeButton.dataset.userId = user.user_id;
+                        removeButton.dataset.username = user.username;
+                        removeButton.addEventListener("click", () => {
+                            removeMemberHandler(
+                                projectId,
+                                user.user_id,
+                                user.username,
+                            );
+                        });
+                        memberHeader.appendChild(removeButton);
+                    }
                 }
 
                 memberContainer.appendChild(memberHeader);
@@ -503,9 +544,12 @@ import "../styles/style.css";
                     if (report.is_alarm) {
                         reportParagraph.style.color = "red";
                         reportParagraph.style.fontWeight = "bold";
-                        reportParagraph.textContent = report.alarm_message || "Alarm triggered (no message).";
+                        reportParagraph.textContent =
+                            report.alarm_message ||
+                            "Alarm triggered (no message).";
                     } else {
-                        reportParagraph.textContent = report.mood_summary || "No summary available.";
+                        reportParagraph.textContent =
+                            report.mood_summary || "No summary available.";
                     }
                 } else {
                     reportParagraph.textContent = "No recent report found.";
@@ -515,17 +559,24 @@ import "../styles/style.css";
                 memberContainer.appendChild(reportParagraph);
                 memberListElement.appendChild(memberContainer);
             });
-
         } catch (userError) {
             memberListElement.innerHTML =
                 "<div class='error-message'>Error loading member details.</div>";
         }
     }
 
-    async function removeMemberHandler(projectId: string, userId: string, username: string) {
+    async function removeMemberHandler(
+        projectId: string,
+        userId: string,
+        username: string,
+    ) {
         const messageElement = document.getElementById("add-member-message");
 
-        if (!window.confirm(`Are you sure you want to remove ${username} from this project?`)) {
+        if (
+            !window.confirm(
+                `Are you sure you want to remove ${username} from this project?`,
+            )
+        ) {
             return;
         }
 
@@ -539,23 +590,28 @@ import "../styles/style.css";
             messageElement.className = "message success";
 
             // Pass the currentOwnerId when reloading the list
-            await loadMemberList(projectId, currentOwnerId); 
+            await loadMemberList(projectId, currentOwnerId);
 
             setTimeout(() => {
                 // Clear message only if it hasn't changed
-                 if (messageElement.textContent === `Successfully removed ${username}.`) {
+                if (
+                    messageElement.textContent ===
+                    `Successfully removed ${username}.`
+                ) {
                     messageElement.textContent = "";
                     messageElement.className = "message";
                 }
             }, 3000);
-
         } catch (error: any) {
             console.error(`Error removing member ${username}:`, error);
-            messageElement.textContent = `Failed to remove ${username}: ${error.message || 'Unknown error'}`;
+            messageElement.textContent = `Failed to remove ${username}: ${error.message || "Unknown error"}`;
             messageElement.className = "message error";
-             // Clear message only if it hasn't changed
+            // Clear message only if it hasn't changed
             setTimeout(() => {
-                 if (messageElement.textContent === `Failed to remove ${username}: ${error.message || 'Unknown error'}`) {
+                if (
+                    messageElement.textContent ===
+                    `Failed to remove ${username}: ${error.message || "Unknown error"}`
+                ) {
                     messageElement.textContent = "";
                     messageElement.className = "message";
                 }
@@ -566,30 +622,38 @@ import "../styles/style.css";
     async function loadStaticProjectData(projectId: string) {
         const projectNameElement = document.getElementById("project-name");
         const projectDescriptionElement = document.getElementById(
-        "project-description",
+            "project-description",
         );
         const groupMoodTextElement = document.getElementById("group-mood-text");
-        
+
         projectNameElement.textContent = "Loading project...";
         projectDescriptionElement.textContent = "";
-        if (groupMoodTextElement) groupMoodTextElement.textContent = "Loading...";
-        
+        if (groupMoodTextElement)
+            groupMoodTextElement.textContent = "Loading...";
+
         try {
             const project = await chorusAPI.getProjectDetails(projectId);
             currentOwnerId = project.owner_id; // Assign to the outer scope variable
             projectNameElement.textContent = project.name;
             projectDescriptionElement.textContent =
-            project.description || "No description available.";
-            
+                project.description || "No description available.";
+
             try {
-                const groupReports = await chorusAPI.getGroupReports(projectId, 1, 1);
+                const groupReports = await chorusAPI.getGroupReports(
+                    projectId,
+                    1,
+                    1,
+                );
                 if (groupMoodTextElement) {
                     if (groupReports && groupReports.length > 0) {
-                        groupMoodTextElement.textContent = groupReports[0].mood_summary || "No summary available.";
+                        groupMoodTextElement.textContent =
+                            groupReports[0].mood_summary ||
+                            "No summary available.";
                         groupMoodTextElement.style.fontStyle = "normal";
                         groupMoodTextElement.style.color = "#333";
                     } else {
-                        groupMoodTextElement.textContent = "No recent group report found.";
+                        groupMoodTextElement.textContent =
+                            "No recent group report found.";
                         groupMoodTextElement.style.fontStyle = "italic";
                         groupMoodTextElement.style.color = "#555";
                     }
@@ -597,21 +661,22 @@ import "../styles/style.css";
             } catch (groupReportError) {
                 console.error("Error loading group report:", groupReportError);
                 if (groupMoodTextElement) {
-                    groupMoodTextElement.textContent = "Error loading group summary.";
+                    groupMoodTextElement.textContent =
+                        "Error loading group summary.";
                     groupMoodTextElement.style.color = "red";
                 }
             }
-            
+
             // Pass the fetched ownerId to loadMemberList
-            await loadMemberList(projectId, currentOwnerId); 
-            
+            await loadMemberList(projectId, currentOwnerId);
         } catch (error) {
             projectNameElement.textContent = "Error";
             projectDescriptionElement.textContent =
-            "Failed to load project details.";
-            const groupMoodTextElement = document.getElementById("group-mood-text");
+                "Failed to load project details.";
+            const groupMoodTextElement =
+                document.getElementById("group-mood-text");
             const groupEmotionBarElement = document.querySelector(
-            "#group-emotionbar-container .emotion-gradient-bar",
+                "#group-emotionbar-container .emotion-gradient-bar",
             ) as HTMLElement;
             if (groupMoodTextElement) {
                 groupMoodTextElement.textContent = "Error loading data.";
@@ -624,7 +689,9 @@ import "../styles/style.css";
     }
 
     async function addUserToProjectHandler(projectId: string) {
-        const usernameInput = document.getElementById("new-member-username") as HTMLInputElement;
+        const usernameInput = document.getElementById(
+            "new-member-username",
+        ) as HTMLInputElement;
         const messageElement = document.getElementById("add-member-message");
         const username = usernameInput.value.trim();
 
@@ -640,7 +707,7 @@ import "../styles/style.css";
         try {
             const user = await chorusAPI.getUserDetailsByUsername(username);
             if (!user || !user.user_id) {
-                 throw new Error(`User '${username}' not found.`);
+                throw new Error(`User '${username}' not found.`);
             }
             await chorusAPI.addMemberToProject(projectId, user.user_id);
 
@@ -649,23 +716,28 @@ import "../styles/style.css";
             usernameInput.value = "";
 
             // Pass the currentOwnerId when reloading the list
-            await loadMemberList(projectId, currentOwnerId); 
+            await loadMemberList(projectId, currentOwnerId);
 
             setTimeout(() => {
-                 // Clear message only if it hasn't changed
-                 if (messageElement.textContent === `Successfully added ${username}.`) {
+                // Clear message only if it hasn't changed
+                if (
+                    messageElement.textContent ===
+                    `Successfully added ${username}.`
+                ) {
                     messageElement.textContent = "";
                     messageElement.className = "message";
                 }
             }, 3000);
-
         } catch (error: any) {
             console.error("Error adding member:", error);
-            messageElement.textContent = `Failed to add member: ${error.message || 'Unknown error'}`;
+            messageElement.textContent = `Failed to add member: ${error.message || "Unknown error"}`;
             messageElement.className = "message error";
-             // Clear message only if it hasn't changed
+            // Clear message only if it hasn't changed
             setTimeout(() => {
-                 if (messageElement.textContent === `Failed to add member: ${error.message || 'Unknown error'}`) {
+                if (
+                    messageElement.textContent ===
+                    `Failed to add member: ${error.message || "Unknown error"}`
+                ) {
                     messageElement.textContent = "";
                     messageElement.className = "message";
                 }
@@ -674,8 +746,12 @@ import "../styles/style.css";
     }
 
     async function deleteProjectHandler(projectId: string) {
-        const messageElement = document.getElementById("delete-project-message");
-        const deleteButton = document.getElementById("delete-project-button") as HTMLButtonElement;
+        const messageElement = document.getElementById(
+            "delete-project-message",
+        );
+        const deleteButton = document.getElementById(
+            "delete-project-button",
+        ) as HTMLButtonElement;
 
         messageElement.textContent = "Deleting project...";
         messageElement.className = "message info";
@@ -684,53 +760,59 @@ import "../styles/style.css";
         try {
             await chorusAPI.deleteProject(projectId);
 
-            messageElement.textContent = "Project successfully deleted. Redirecting...";
+            messageElement.textContent =
+                "Project successfully deleted. Redirecting...";
             messageElement.className = "message success";
 
             setTimeout(() => {
                 navigate("/dashboard");
             }, 1000);
-
         } catch (error: any) {
             console.error("Error deleting project:", error);
-            messageElement.textContent = `Failed to delete project: ${error.message || 'Unknown error'}`;
+            messageElement.textContent = `Failed to delete project: ${error.message || "Unknown error"}`;
             messageElement.className = "message error";
             deleteButton.disabled = false;
         }
     }
-    
+
     document.addEventListener("astro:page-load", () => {
         currentOwnerId = null; // Reset ownerId on page load
         const urlParams = new URLSearchParams(window.location.search);
         const projectId = urlParams.get("project_id");
         const timeRangeFromUrl = urlParams.get("time_range");
-        
+
         const timeRangeSelect = document.getElementById(
-        "time-range",
+            "time-range",
         ) as HTMLSelectElement;
         const projectNameElement = document.getElementById("project-name");
         const projectDescriptionElement = document.getElementById(
-        "project-description",
+            "project-description",
         );
         const groupEmotionBarElement = document.querySelector(
-        "#group-emotionbar-container .emotion-gradient-bar",
+            "#group-emotionbar-container .emotion-gradient-bar",
         ) as HTMLElement;
         const barWrapper = document.querySelector(
-        ".emotion-gradient-bar-wrapper",
+            ".emotion-gradient-bar-wrapper",
         ) as HTMLElement;
         const tooltipElement = document.getElementById(
-        "emotion-tooltip",
+            "emotion-tooltip",
         ) as HTMLElement;
         const addMemberButton = document.getElementById("add-member-button");
-        const addMemberInput = document.getElementById("new-member-username") as HTMLInputElement;
-        const deleteProjectButton = document.getElementById("delete-project-button");
-        const deleteProjectMessage = document.getElementById("delete-project-message");
-        
+        const addMemberInput = document.getElementById(
+            "new-member-username",
+        ) as HTMLInputElement;
+        const deleteProjectButton = document.getElementById(
+            "delete-project-button",
+        );
+        const deleteProjectMessage = document.getElementById(
+            "delete-project-message",
+        );
+
         if (
-        timeRangeFromUrl &&
-        [...timeRangeSelect.options].some(
-        (opt) => opt.value === timeRangeFromUrl,
-        )
+            timeRangeFromUrl &&
+            [...timeRangeSelect.options].some(
+                (opt) => opt.value === timeRangeFromUrl,
+            )
         ) {
             timeRangeSelect.value = timeRangeFromUrl;
         } else {
@@ -741,141 +823,210 @@ import "../styles/style.css";
                 history.replaceState({}, "", currentUrl.toString());
             }
         }
-        
+
         const initialLoad = () => {
             const selectedTimeRangeValue = timeRangeSelect.value;
-            const timeRangeSeconds = parseTimeRangeToSeconds(selectedTimeRangeValue);
+            const timeRangeSeconds = parseTimeRangeToSeconds(
+                selectedTimeRangeValue,
+            );
             const timeRangeEnd = Math.floor(Date.now() / 1000);
             const timeRangeStart = timeRangeEnd - timeRangeSeconds;
             currentDataTimeRangeEnd = timeRangeEnd;
-            
+
             if (projectId) {
                 loadStaticProjectData(projectId).then(() => {
-                    loadTimeDependentData(projectId, timeRangeStart, timeRangeEnd);
+                    loadTimeDependentData(
+                        projectId,
+                        timeRangeStart,
+                        timeRangeEnd,
+                    );
                 });
             }
         };
-        
+
         chorusAPI
-        .isLoggedIn()
-        .then((isLoggedIn) => {
-            if (!isLoggedIn) {
-                setTimeout(() => navigate("/login"), 1000);
-            } else {
-                if (projectId) {
-                    initialLoad();
-                    
-                    timeRangeSelect.addEventListener("change", (event) => {
-                        const newTimeRangeValue = (event.target as HTMLSelectElement).value;
-                        const currentUrl = new URL(window.location.href);
-                        currentUrl.searchParams.set("time_range", newTimeRangeValue);
-                        history.pushState({}, "", currentUrl.toString());
-                        
-                        const timeRangeSeconds = parseTimeRangeToSeconds(newTimeRangeValue);
-                        const timeRangeEnd = Math.floor(Date.now() / 1000);
-                        const timeRangeStart = timeRangeEnd - timeRangeSeconds;
-                        currentDataTimeRangeEnd = timeRangeEnd;
-                        
-                        loadTimeDependentData(projectId, timeRangeStart, timeRangeEnd);
-                    });
-                    
-                    if (addMemberButton) {
-                        addMemberButton.addEventListener("click", () => {
-                            addUserToProjectHandler(projectId);
-                        });
-                    }
-                    if (addMemberInput) {
-                         addMemberInput.addEventListener("keypress", (event) => {
-                            if (event.key === "Enter") {
-                                event.preventDefault();
-                                addUserToProjectHandler(projectId);
-                            }
-                        });
-                    }
-
-                    if (deleteProjectButton) {
-                        deleteProjectButton.addEventListener("click", () => {
-                            if (window.confirm("Are you sure you want to delete this project? This action cannot be undone.")) {
-                                deleteProjectHandler(projectId);
-                            }
-                        });
-                    }
-
-                    if (barWrapper && groupEmotionBarElement && tooltipElement) {
-                        barWrapper.addEventListener(
-                        "mousemove",
-                        (event) => {
-                            if (currentDataTimeRangeEnd !== null) {
-                                const selectedTimeRangeValue = timeRangeSelect.value;
-                                const durationSeconds = parseTimeRangeToSeconds(selectedTimeRangeValue);
-                                const timeRangeEnd = currentDataTimeRangeEnd;
-                                const timeRangeStart = timeRangeEnd - durationSeconds;
-                                
-                                const rect = groupEmotionBarElement.getBoundingClientRect();
-                                const x = event.clientX - rect.left;
-                                const width = rect.width;
-                                const percentage = Math.max(0, Math.min(100, (x / width) * 100));
-                                
-                                const currentTimestamp = timeRangeStart + (percentage / 100) * durationSeconds;
-                                
-                                const date = new Date(currentTimestamp * 1000);
-                                
-                                const options: Intl.DateTimeFormatOptions = {
-                                    year: 'numeric',
-                                    month: 'long',
-                                    day: 'numeric',
-                                    hour: 'numeric',
-                                    minute: '2-digit',
-                                    second: '2-digit',
-                                    hour12: true,
-                                    timeZone: 'America/Chicago',
-                                    timeZoneName: 'short'
-                                };
-                                const timeString = date.toLocaleString("en-US", options);
-                                
-                                tooltipElement.textContent = timeString;
-                                tooltipElement.style.display = "block";
-                                
-                                const wrapperRect = barWrapper.getBoundingClientRect();
-                                const tooltipWidth = tooltipElement.offsetWidth;
-                                let tooltipX = event.clientX - wrapperRect.left - tooltipWidth / 2;
-                                tooltipX = Math.max(0, Math.min(tooltipX, wrapperRect.width - tooltipWidth));
-                                
-                                tooltipElement.style.left = `${tooltipX}px`;
-                            } else {
-                                tooltipElement.style.display = "none";
-                            }
-                        },
-                        );
-                        
-                        barWrapper.addEventListener("mouseleave", () => {
-                            tooltipElement.style.display = "none";
-                        });
-                    }
+            .isLoggedIn()
+            .then((isLoggedIn) => {
+                if (!isLoggedIn) {
+                    setTimeout(() => navigate("/login"), 1000);
                 } else {
-                    projectNameElement.textContent = "Error";
-                    projectDescriptionElement.textContent =
-                    "Invalid project ID.";
-                    if (groupEmotionBarElement)
-                    groupEmotionBarElement.style.display = "none";
-                    const addMemberSection = document.getElementById("add-member-section");
-                    if (addMemberSection) addMemberSection.style.display = 'none';
-                    if (deleteProjectButton) deleteProjectButton.style.display = 'none';
-                    if (deleteProjectMessage) deleteProjectMessage.style.display = 'none';
+                    if (projectId) {
+                        initialLoad();
+
+                        timeRangeSelect.addEventListener("change", (event) => {
+                            const newTimeRangeValue = (
+                                event.target as HTMLSelectElement
+                            ).value;
+                            const currentUrl = new URL(window.location.href);
+                            currentUrl.searchParams.set(
+                                "time_range",
+                                newTimeRangeValue,
+                            );
+                            history.pushState({}, "", currentUrl.toString());
+
+                            const timeRangeSeconds =
+                                parseTimeRangeToSeconds(newTimeRangeValue);
+                            const timeRangeEnd = Math.floor(Date.now() / 1000);
+                            const timeRangeStart =
+                                timeRangeEnd - timeRangeSeconds;
+                            currentDataTimeRangeEnd = timeRangeEnd;
+
+                            loadTimeDependentData(
+                                projectId,
+                                timeRangeStart,
+                                timeRangeEnd,
+                            );
+                        });
+
+                        if (addMemberButton) {
+                            addMemberButton.addEventListener("click", () => {
+                                addUserToProjectHandler(projectId);
+                            });
+                        }
+                        if (addMemberInput) {
+                            addMemberInput.addEventListener(
+                                "keypress",
+                                (event) => {
+                                    if (event.key === "Enter") {
+                                        event.preventDefault();
+                                        addUserToProjectHandler(projectId);
+                                    }
+                                },
+                            );
+                        }
+
+                        if (deleteProjectButton) {
+                            deleteProjectButton.addEventListener(
+                                "click",
+                                () => {
+                                    if (
+                                        window.confirm(
+                                            "Are you sure you want to delete this project? This action cannot be undone.",
+                                        )
+                                    ) {
+                                        deleteProjectHandler(projectId);
+                                    }
+                                },
+                            );
+                        }
+
+                        if (
+                            barWrapper &&
+                            groupEmotionBarElement &&
+                            tooltipElement
+                        ) {
+                            barWrapper.addEventListener(
+                                "mousemove",
+                                (event) => {
+                                    if (currentDataTimeRangeEnd !== null) {
+                                        const selectedTimeRangeValue =
+                                            timeRangeSelect.value;
+                                        const durationSeconds =
+                                            parseTimeRangeToSeconds(
+                                                selectedTimeRangeValue,
+                                            );
+                                        const timeRangeEnd =
+                                            currentDataTimeRangeEnd;
+                                        const timeRangeStart =
+                                            timeRangeEnd - durationSeconds;
+
+                                        const rect =
+                                            groupEmotionBarElement.getBoundingClientRect();
+                                        const x = event.clientX - rect.left;
+                                        const width = rect.width;
+                                        const percentage = Math.max(
+                                            0,
+                                            Math.min(100, (x / width) * 100),
+                                        );
+
+                                        const currentTimestamp =
+                                            timeRangeStart +
+                                            (percentage / 100) *
+                                                durationSeconds;
+
+                                        const date = new Date(
+                                            currentTimestamp * 1000,
+                                        );
+
+                                        const options: Intl.DateTimeFormatOptions =
+                                            {
+                                                year: "numeric",
+                                                month: "long",
+                                                day: "numeric",
+                                                hour: "numeric",
+                                                minute: "2-digit",
+                                                second: "2-digit",
+                                                hour12: true,
+                                                timeZone: "America/Chicago",
+                                                timeZoneName: "short",
+                                            };
+                                        const timeString = date.toLocaleString(
+                                            "en-US",
+                                            options,
+                                        );
+
+                                        tooltipElement.textContent = timeString;
+                                        tooltipElement.style.display = "block";
+
+                                        const wrapperRect =
+                                            barWrapper.getBoundingClientRect();
+                                        const tooltipWidth =
+                                            tooltipElement.offsetWidth;
+                                        let tooltipX =
+                                            event.clientX -
+                                            wrapperRect.left -
+                                            tooltipWidth / 2;
+                                        tooltipX = Math.max(
+                                            0,
+                                            Math.min(
+                                                tooltipX,
+                                                wrapperRect.width -
+                                                    tooltipWidth,
+                                            ),
+                                        );
+
+                                        tooltipElement.style.left = `${tooltipX}px`;
+                                    } else {
+                                        tooltipElement.style.display = "none";
+                                    }
+                                },
+                            );
+
+                            barWrapper.addEventListener("mouseleave", () => {
+                                tooltipElement.style.display = "none";
+                            });
+                        }
+                    } else {
+                        projectNameElement.textContent = "Error";
+                        projectDescriptionElement.textContent =
+                            "Invalid project ID.";
+                        if (groupEmotionBarElement)
+                            groupEmotionBarElement.style.display = "none";
+                        const addMemberSection =
+                            document.getElementById("add-member-section");
+                        if (addMemberSection)
+                            addMemberSection.style.display = "none";
+                        if (deleteProjectButton)
+                            deleteProjectButton.style.display = "none";
+                        if (deleteProjectMessage)
+                            deleteProjectMessage.style.display = "none";
+                    }
                 }
-            }
-        })
-        .catch((error) => {
-            projectNameElement.textContent = "Error";
-            projectDescriptionElement.textContent =
-            "Could not verify login status.";
-            if (groupEmotionBarElement)
-            groupEmotionBarElement.style.display = "none";
-            const addMemberSection = document.getElementById("add-member-section");
-            if (addMemberSection) addMemberSection.style.display = 'none';
-            if (deleteProjectButton) deleteProjectButton.style.display = 'none';
-            if (deleteProjectMessage) deleteProjectMessage.style.display = 'none';
-        });
+            })
+            .catch((error) => {
+                projectNameElement.textContent = "Error";
+                projectDescriptionElement.textContent =
+                    "Could not verify login status.";
+                if (groupEmotionBarElement)
+                    groupEmotionBarElement.style.display = "none";
+                const addMemberSection =
+                    document.getElementById("add-member-section");
+                if (addMemberSection) addMemberSection.style.display = "none";
+                if (deleteProjectButton)
+                    deleteProjectButton.style.display = "none";
+                if (deleteProjectMessage)
+                    deleteProjectMessage.style.display = "none";
+            });
     });
 </script>
 
@@ -884,20 +1035,20 @@ import "../styles/style.css";
         padding: 20px;
         font-family: sans-serif;
     }
-    
+
     #project-name {
         font-size: 24px;
         font-weight: bold;
         margin-bottom: 5px;
     }
-    
+
     #project-description {
         margin-top: 0;
         margin-bottom: 20px;
         font-size: 16px;
         color: #555;
     }
-    
+
     #delete-project-button {
         padding: 8px 15px;
         border: none;
@@ -935,13 +1086,13 @@ import "../styles/style.css";
         margin-top: 20px;
         margin-bottom: 30px;
     }
-    
+
     .emotion-gradient-bar-wrapper {
         position: relative;
         width: 100%;
         margin-bottom: 10px;
     }
-    
+
     .emotion-gradient-bar {
         width: 100%;
         border: 1px solid #ccc;
@@ -951,7 +1102,7 @@ import "../styles/style.css";
         height: 30px;
         cursor: crosshair;
     }
-    
+
     #emotion-tooltip {
         display: none;
         position: absolute;
@@ -966,18 +1117,18 @@ import "../styles/style.css";
         bottom: 100%;
         margin-bottom: 5px;
     }
-    
+
     #group-emotionbar-container .emotion-gradient-bar {
         height: 30px;
         margin-bottom: 10px;
     }
-    
+
     #group-emotionbar-key ul {
         list-style-type: none;
         padding: 0;
         margin: 0;
     }
-    
+
     #group-emotionbar-key li {
         display: inline-block;
         margin-right: 15px;
@@ -985,7 +1136,7 @@ import "../styles/style.css";
         font-size: 14px;
         vertical-align: middle;
     }
-    
+
     #group-emotionbar-key li::before {
         content: "";
         display: inline-block;
@@ -995,7 +1146,7 @@ import "../styles/style.css";
         margin-right: 6px;
         vertical-align: middle;
     }
-    
+
     :root {
         --color-anger: rgb(239, 83, 80);
         --color-disgust: rgb(102, 187, 106);
@@ -1006,7 +1157,7 @@ import "../styles/style.css";
         --color-neutral: rgb(173, 216, 230);
         --color-nodata: rgb(220, 220, 220);
     }
-    
+
     #key-anger::before {
         background-color: var(--color-anger);
     }
@@ -1031,18 +1182,18 @@ import "../styles/style.css";
     #key-nodata::before {
         background-color: var(--color-nodata);
     }
-    
+
     h2 {
         margin-top: 30px;
         margin-bottom: 10px;
         font-size: 20px;
     }
-    
+
     #member-list {
         padding-left: 0;
         margin-top: 10px;
     }
-    
+
     .member-item {
         margin-bottom: 25px;
         padding: 15px;
@@ -1058,7 +1209,7 @@ import "../styles/style.css";
         align-items: center;
         margin-bottom: 5px;
     }
-    
+
     .member-item h4 {
         margin-top: 0;
         margin-bottom: 0;
@@ -1072,7 +1223,7 @@ import "../styles/style.css";
         margin-left: 10px;
         color: var(--crimson-red);
     }
-    
+
     .report-summary {
         margin-top: 0;
         margin-bottom: 0;
@@ -1080,23 +1231,23 @@ import "../styles/style.css";
         color: #555;
         padding-left: 5px;
     }
-    
+
     #member-list .error-message {
         color: red;
         font-weight: bold;
     }
-    
+
     #group-mood-summary {
         margin-top: 10px;
         margin-bottom: 20px;
         font-size: 16px;
         color: #333;
     }
-    
+
     #group-mood-summary strong {
         margin-right: 5px;
     }
-    
+
     select {
         display: inline-flex;
         align-items: center;
@@ -1106,7 +1257,7 @@ import "../styles/style.css";
         background-color: var(--golden-treasure);
         color: var(--parchment);
         border: none;
-        padding: 0.5rem .75rem;
+        padding: 0.5rem 0.75rem;
         font-size: 1rem;
         font-weight: 100;
         border-radius: 0.5rem;

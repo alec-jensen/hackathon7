@@ -63,11 +63,6 @@ import "../styles/style.css";
                         <p>Owner: ${ownerName}</p>
                         <a href="/project?project_id=${project.project_id}">View Project</a>
                     `;
-                    chorusAPI.getUserDetails().then((userInfo) => {
-                        if (project.owner_id == userInfo.user_id) {
-                            projectItem.innerHTML += '<a href="/project?project_id=${project.project_id}" style="color: var(--crimson-red)">Delete Project</a>';
-                        }
-                    });
                     projectList.appendChild(projectItem);
                 })
             });
