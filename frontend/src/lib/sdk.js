@@ -24,7 +24,7 @@ function urlJoin(...args) {
     // (unless it's just the base URL like "http://example.com/")
     const lastPart = parts[parts.length - 1];
     if (joined !== parts[0] && !lastPart.endsWith('/') && joined.endsWith('/')) {
-         joined = joined.slice(0, -1);
+        joined = joined.slice(0, -1);
     }
 
     return joined;
@@ -280,7 +280,7 @@ export default class ChorusAPI {
      * @param {string} projectId - The ID of the project.
      * @param {number} [startTime=0] - The start time as a Unix timestamp (seconds). Defaults to 0.
      * @param {number} [endTime=0] - The end time as a Unix timestamp (seconds). Defaults to the current time if 0.
-     * @returns {Promise<{emotions: Array<{_id: string, user_id: string, timestamp: string, emotions: object, received_at: string}>}>} A list of emotion data entries.
+     * @returns {Promise<{emotions: Array<{_id: string, user_id: string, timestamp: string, emotions: Array<{angry: number, disgust: number, fear: number, happy: number, sad: number, surprise: number, neutral: number}>, received_at: string}>}>} A list of emotion data entries.
      */
     async getProjectEmotions(projectId, startTime, endTime) {
         const queryParams = {};
@@ -290,6 +290,13 @@ export default class ChorusAPI {
         return this.request(`/projects/${projectId}/emotions`, 'GET', null, {}, queryParams);
     }
 
+    /**
+     * Gets average mood data for a project within a specified time range (using the stored token).
+     * @param {string} projectId - The ID of the project.
+     * @param {number} [startTime=0] - The start time as a Unix timestamp (seconds). Defaults to 0.
+     * @param {number} [endTime=0] - The end time as a Unix timestamp (seconds). Defaults to the current time if 0.
+     * @returns {Promise<Array<{interval: string, average_emotions: Array<{angry: number, disgust: number, fear: number, happy: number, sad: number, surprise: number, neutral: number}>}>>} A list of average emotion objects per interval, where 'interval' is typically an ISO date string representing the start of the interval.
+     */
     async getProjectAverageEmotions(projectId, startTime, endTime) {
         const queryParams = {};
         if (startTime !== undefined && startTime !== null) queryParams.start_time = startTime;
