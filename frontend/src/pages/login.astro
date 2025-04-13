@@ -2,6 +2,7 @@
 import Layout from "../layouts/Layout.astro";
 import "../styles/style.css"
 import "../styles/loginpage.css"
+import AniButton from "../components/Button.astro"
 ---
 
 <Layout>
@@ -15,9 +16,9 @@ import "../styles/loginpage.css"
                 <input id="password" type="password" placeholder="password" required>
             </div>
             <div>
-                <button type="submit">
+                <AniButton type="submit">
                     Sign In
-                </button>
+                </AniButton>
             </div>
              <p id="login-error"></p> <!-- Error message placeholder -->
         </form>
