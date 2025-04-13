@@ -6,8 +6,6 @@ import Layout from "../layouts/Layout.astro";
     <div id="project-container">
         <h1 id="project-name">Loading project...</h1>
         <p id="project-description"></p>
-        <button id="delete-project-button" class="danger-button">Delete Project</button>
-        <p id="delete-project-message" class="message"></p>
         
         <select id="time-range">
             <option value="10m">Last 10 minutes</option>
@@ -49,6 +47,11 @@ import Layout from "../layouts/Layout.astro";
             <p id="add-member-message" class="message"></p>
         </div>
         <div id="member-list">Loading members...</div>
+
+        <div id="project-actions-bottom">
+            <button id="delete-project-button" class="danger-button">Delete Project</button>
+            <p id="delete-project-message" class="message"></p>
+        </div>
     </div>
 </Layout>
 
@@ -459,9 +462,24 @@ import Layout from "../layouts/Layout.astro";
                 const memberContainer = document.createElement("div");
                 memberContainer.className = "member-item";
 
+                const memberHeader = document.createElement("div");
+                memberHeader.className = "member-header";
+
                 const usernameHeader = document.createElement("h4");
                 usernameHeader.textContent = user.username;
-                memberContainer.appendChild(usernameHeader);
+                memberHeader.appendChild(usernameHeader);
+
+                const removeButton = document.createElement("button");
+                removeButton.textContent = "Remove";
+                removeButton.className = "remove-member-button danger-button";
+                removeButton.dataset.userId = user.user_id;
+                removeButton.dataset.username = user.username;
+                removeButton.addEventListener('click', () => {
+                    removeMemberHandler(projectId, user.user_id, user.username);
+                });
+                memberHeader.appendChild(removeButton);
+
+                memberContainer.appendChild(memberHeader);
 
                 const reportParagraph = document.createElement("p");
                 reportParagraph.className = "report-summary";
@@ -490,6 +508,36 @@ import Layout from "../layouts/Layout.astro";
         } catch (userError) {
             memberListElement.innerHTML =
                 "<div class='error-message'>Error loading member details.</div>";
+        }
+    }
+
+    async function removeMemberHandler(projectId: string, userId: string, username: string) {
+        const messageElement = document.getElementById("add-member-message");
+
+        if (!window.confirm(`Are you sure you want to remove ${username} from this project?`)) {
+            return;
+        }
+
+        messageElement.textContent = `Removing ${username}...`;
+        messageElement.className = "message info";
+
+        try {
+            await chorusAPI.removeMemberFromProject(projectId, userId);
+
+            messageElement.textContent = `Successfully removed ${username}.`;
+            messageElement.className = "message success";
+
+            await loadMemberList(projectId);
+
+            setTimeout(() => {
+                messageElement.textContent = "";
+                messageElement.className = "message";
+            }, 3000);
+
+        } catch (error: any) {
+            console.error(`Error removing member ${username}:`, error);
+            messageElement.textContent = `Failed to remove ${username}: ${error.message || 'Unknown error'}`;
+            messageElement.className = "message error";
         }
     }
 
@@ -809,13 +857,12 @@ import Layout from "../layouts/Layout.astro";
     
     #project-description {
         margin-top: 0;
-        margin-bottom: 10px;
+        margin-bottom: 20px;
         font-size: 16px;
         color: #555;
     }
     
     #delete-project-button {
-        margin-bottom: 20px;
         padding: 8px 15px;
         border: none;
         border-radius: 4px;
@@ -839,9 +886,13 @@ import Layout from "../layouts/Layout.astro";
     }
 
     #delete-project-message {
-        margin-top: -15px;
-        margin-bottom: 20px;
         min-height: 20px;
+    }
+
+    #project-actions-bottom {
+        margin-top: 40px;
+        padding-top: 20px;
+        border-top: 1px solid #eee;
     }
 
     #group-emotionbar-container {
@@ -962,13 +1013,27 @@ import Layout from "../layouts/Layout.astro";
         border: 1px solid #eee;
         border-radius: 8px;
         background-color: #f9f9f9;
+        position: relative;
+    }
+
+    .member-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 5px;
     }
     
     .member-item h4 {
         margin-top: 0;
-        margin-bottom: 5px;
+        margin-bottom: 0;
         font-size: 18px;
         color: #333;
+    }
+
+    .remove-member-button {
+        padding: 4px 8px;
+        font-size: 12px;
+        margin-left: 10px;
     }
     
     .report-summary {

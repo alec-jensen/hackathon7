@@ -79,6 +79,30 @@ async def add_member_to_project(
     return {"message": "Member added successfully"}
 
 
+@router.delete("/{project_id}/remove-member")
+async def remove_member_from_project(
+    project_id: str, request_data: AddMemberRequest, current_user=Depends(get_current_user)
+):
+    project = await projects_collection.find_one({"project_id": project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    if project["owner_id"] != current_user.user_id:
+        raise HTTPException(
+            status_code=403, detail="Only the project owner can remove members"
+        )
+
+    if request_data.user_id not in project["members"]:
+        raise HTTPException(
+            status_code=400, detail="User is not a member of the project"
+        )
+
+    await projects_collection.update_one(
+        {"project_id": project_id}, {"$pull": {"members": request_data.user_id}}
+    )
+    return {"message": "Member removed successfully"}
+
+
 @router.post("/{project_id}/add-repo")
 async def add_repo_to_project(
     project_id: str, request_data: AddRepoRequest, current_user=Depends(get_current_user)  # Modify signature

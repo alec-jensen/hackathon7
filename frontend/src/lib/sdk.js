@@ -247,6 +247,16 @@ export default class ChorusAPI {
     }
 
     /**
+     * Removes a member from a project (using the stored token).
+     * @param {string} projectId - The ID of the project.
+     * @param {string} user_id - The email address of the user to remove.
+     * @returns {Promise<{message: string}>} Confirmation message.
+     */
+    async removeMemberFromProject(projectId, user_id) {
+        return this.request(`/projects/${projectId}/remove-member`, 'DELETE', { user_id }); // Token added automatically
+    }
+
+    /**
      * Adds a repository to a project (using the stored token).
      * @param {string} projectId - The ID of the project.
      * @param {string} repoUrl - The URL of the Git repository.
