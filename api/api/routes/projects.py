@@ -254,13 +254,13 @@ async def get_project_average_mood(
 
     pipeline = [
         {
-            "$match": { # Match the project members and time range
+            "$match": {  # Match the project members and time range
                 "user_id": {"$in": project["members"]},
                 "received_at": {"$gte": start_date, "$lte": end_date},
             }
         },
         {
-            "$set": { # Set the interval to the start of the minute
+            "$set": {  # Set the interval to the start of the minute
                 "interval": {
                     "$dateTrunc": {
                         "date": "$received_at",
@@ -271,17 +271,20 @@ async def get_project_average_mood(
             }
         },
         {
-            "$densify": { # Fill in the gaps in the time series
+            "$densify": {  # Fill in the gaps in the time series
                 "field": "interval",
                 "range": {
                     "step": 1,
                     "unit": "minute",
-                    "bounds": [start_minute_bound, end_minute_bound], # Use the variables directly
+                    "bounds": [
+                        start_minute_bound,
+                        end_minute_bound,
+                    ],  # Use the variables directly
                 },
             }
         },
         {
-            "$group": { # Group by the interval and calculate the average mood
+            "$group": {  # Group by the interval and calculate the average mood
                 "_id": "$interval",
                 "average_angry": {"$avg": "$emotions.angry"},
                 "average_disgust": {"$avg": "$emotions.disgust"},
@@ -293,7 +296,7 @@ async def get_project_average_mood(
             }
         },
         {
-            "$project": { # Project the results to include the interval and average emotions
+            "$project": {  # Project the results to include the interval and average emotions
                 "_id": 0,
                 "interval": "$_id",
                 "average_emotions": {
@@ -307,36 +310,65 @@ async def get_project_average_mood(
                 },
             }
         },
-        {"$sort": {"interval": 1}}, # Sort by interval in ascending order
+        {"$sort": {"interval": 1}},  # Sort by interval in ascending order
         {
-            "$match": { # Filter out intervals where all emotions are None
-                "$or": [
-                    {"average_emotions.angry": {"$ne": None}},
-                    {"average_emotions.disgust": {"$ne": None}},
-                    {"average_emotions.fear": {"$ne": None}},
-                    {"average_emotions.happy": {"$ne": None}},
-                    {"average_emotions.sad": {"$ne": None}},
-                    {"average_emotions.surprise": {"$ne": None}},
-                    {"average_emotions.neutral": {"$ne": None}},
-                ]
+            "$setWindowFields": { # Use $setWindowFields to compute first and last intervals
+                "sortBy": {"interval": 1},
+                "output": {
+                    "firstInterval": {
+                        "$first": "$interval",
+                        "window": {"documents": ["unbounded", "unbounded"]},
+                    },
+                    "lastInterval": {
+                        "$last": "$interval",
+                        "window": {"documents": ["unbounded", "unbounded"]},
+                    },
+                },
             }
         },
+        # keep docs where ANY emotion is non-null, OR it's the first/last interval
+        {
+            "$match": {
+                "$expr": {
+                    "$or": [
+                        # at least one non-null emotion
+                        {"$ne": ["$average_emotions.angry", None]},
+                        {"$ne": ["$average_emotions.disgust", None]},
+                        {"$ne": ["$average_emotions.fear", None]},
+                        {"$ne": ["$average_emotions.happy", None]},
+                        {"$ne": ["$average_emotions.sad", None]},
+                        {"$ne": ["$average_emotions.surprise", None]},
+                        {"$ne": ["$average_emotions.neutral", None]},
+                        {"$eq": ["$interval", "$firstInterval"]},
+                        {"$eq": ["$interval", "$lastInterval"]},
+                    ]
+                }
+            }
+        },
+        # 3) drop the helper fields
+        {"$project": {"firstInterval": 0, "lastInterval": 0}},
     ]
 
     # The result is now a list of interval averages
-    aggregation_result = await emotions_collection.aggregate(pipeline).to_list(length=None) # Use length=None
+    aggregation_result = await emotions_collection.aggregate(pipeline).to_list(
+        length=None
+    )  # Use length=None
 
     # Format the timestamps in the result list
     for interval_data in aggregation_result:
         # Convert interval datetime to ISO format string for JSON serialization
-        if "interval" in interval_data and isinstance(interval_data["interval"], datetime):
+        if "interval" in interval_data and isinstance(
+            interval_data["interval"], datetime
+        ):
             interval_data["interval"] = interval_data["interval"].isoformat()
         # Ensure average emotions are present and handle potential None values if needed
         if "average_emotions" in interval_data:
             for key, value in interval_data["average_emotions"].items():
                 if value is None:
                     # Decide how to handle None values, e.g., replace with 0 or keep as None
-                    interval_data["average_emotions"][key] = 0 # Example: replace None with 0
+                    interval_data["average_emotions"][
+                        key
+                    ] = 0  # Example: replace None with 0
 
     # Return the list of interval data
     return aggregation_result
