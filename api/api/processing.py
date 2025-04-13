@@ -55,6 +55,7 @@ async def slack_get_username_from_id(user_id: str) -> str | None:
 
     except SlackApiError as e:
         print(f"Slack API Error: {e.response['error']}")
+        traceback.print_exc()
         return None
 
 
@@ -100,40 +101,44 @@ async def get_slack_messages_for_user(
         # 2) For each channel, fetch history and filter
         for ch in channels:
             chan_id = ch["id"]
-            print(f"    DEBUG: Checking channel {chan_id} ({ch.get('name', 'N/A')})") # Added debug
+            chan_name = ch.get('name', 'N/A')
+            # Check if the bot is a member of the channel before fetching history
+            if not ch.get("is_member"):
+                print(f"    DEBUG: Skipping channel {chan_id} ({chan_name}) - Bot is not a member.")
+                continue
+
+            print(f"    DEBUG: Checking channel {chan_id} ({chan_name}) - Bot is a member.") # Updated debug
             cursor_hist = None
             while True:
-                history = await async_slack_client.conversations_history(
-                    channel=chan_id,
-                    oldest=str(oldest),
-                    latest=str(latest),
-                    limit=200,
-                    cursor=cursor_hist,
-                )
-                for msg in history.get("messages", []):
-                    # Only consider user messages (not bots) and matching user_id
-                    msg_user = msg.get("user")
-                    msg_text = msg.get("text", "[no text]")
-                    print(f"      DEBUG: Processing msg from user {msg_user}: '{msg_text[:50]}...'") # Added debug
-                    if msg_user == user_id and "text" in msg: # Check user ID match
-                        # get slack username
-                        username = await slack_get_username_from_id(msg["user"])
-                        if username: # Ensure username was fetched
-                            user_messages.append(f"{username}: {msg['text']}")
-                            print(f"        DEBUG: Added message from {username} (ID: {user_id})") # Added debug
-                        else:
-                            print(f"        DEBUG: Could not get username for user {user_id}, skipping message.") # Added debug
-                    elif "text" not in msg:
-                        print(f"        DEBUG: Skipping message - no 'text' field.") # Added debug
-                    elif msg_user != user_id:
-                        print(f"        DEBUG: Skipping message - user ID mismatch ({msg_user} != {user_id}).") # Added debug
+                try: # Add try-except block specifically for history fetching
+                    history = await async_slack_client.conversations_history(
+                        channel=chan_id,
+                        oldest=str(oldest),
+                        latest=str(latest),
+                        limit=200,
+                        cursor=cursor_hist,
+                    )
+                    for msg in history.get("messages", []):
+                        # Only consider user messages (not bots) and matching user_id
+                        print(f"    DEBUG: Processing message from user {msg.get('user', 'N/A')}: {msg.get('text', '[no text]')}")
+                        if "text" in msg: # Check user ID match
+                            # get slack username
+                            username = await slack_get_username_from_id(msg["user"])
+                            if username: # Ensure username was fetched
+                                user_messages.append(f"{username}: {msg['text']}")
 
-                cursor_hist = history.get("response_metadata", {}).get("next_cursor")
-                if not cursor_hist:
-                    break
+                    cursor_hist = history.get("response_metadata", {}).get("next_cursor")
+                    if not cursor_hist:
+                        break
+                except SlackApiError as hist_err:
+                    # Catch errors specific to fetching history for this channel
+                    print(f"    ERROR fetching history for channel {chan_id} ({chan_name}): {hist_err.response['error']}")
+                    break # Break inner loop for this channel on error
 
     except SlackApiError as e:
-        print(f"    ERROR fetching Slack messages: {e.response['error']}")
+        # This catches errors from conversations_list primarily
+        print(f"    ERROR fetching Slack channel list: {e.response['error']}")
+        traceback.print_exc()
 
     # Deduplicate and return
     # (optional: you might want to preserve order or include timestamps)
