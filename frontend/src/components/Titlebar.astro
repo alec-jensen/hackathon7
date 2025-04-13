@@ -15,7 +15,7 @@ import UserDropdown from "./UserDropdown.astro";
         padding: 0.5rem 0.5rem;
         box-shadow: var(--shadow);
     }
-
+    
     .logo {
         font-size: 1rem;
         font-weight: bold;
@@ -25,9 +25,11 @@ import UserDropdown from "./UserDropdown.astro";
 </style>
 
 <header class="title-bar">
-    <div class="logo">
-        <Image src={Logo} alt="Chorus" width={64} height={16} />
-    </div>
+    <a href="/dashboard">
+        <div class="logo">
+            <Image src={Logo} alt="Chorus" width={64} height={16} />
+        </div>
+    </a>
     <div class="user">
         <UserDropdown />
     </div>
