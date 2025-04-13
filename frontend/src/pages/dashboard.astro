@@ -28,12 +28,7 @@ import "../styles/style.css";
                     placeholder="Project name"
                     />
                     <br />
-                    <button
-                    class="close-btn"
-                    onclick="this.closest('dialog').close()"
-                    style="background: none;border: none;cursor: pointer;padding: 1.5rem;color: var(--crimson-red);}"
-                    >Cancel</button
-                    >
+                    <button class="close-btn" type="button" onclick="this.closest('dialog').close()"style="background: none;border: none;cursor: pointer;padding: 1.5rem;color: var(--crimson-red);}">Cancel</button>
                     <Button id="confirm-button">Confirm</Button>
                 </form>
             </div>
@@ -118,6 +113,7 @@ import "../styles/style.css";
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Optional: Add a subtle shadow */
         width: 100%; /* Full width */
         max-width: 300px; /* Optional: Limit width */
+        margin: 10px;
     }
     
     /* Optional: Style the link inside the project item */
