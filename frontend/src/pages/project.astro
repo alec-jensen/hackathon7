@@ -47,6 +47,11 @@ import Layout from "../layouts/Layout.astro";
             <p id="add-member-message" class="message"></p>
         </div>
         <div id="member-list">Loading members...</div>
+
+        <div id="project-actions-bottom">
+            <button id="delete-project-button" class="danger-button">Delete Project</button>
+            <p id="delete-project-message" class="message"></p>
+        </div>
     </div>
 </Layout>
 
@@ -457,9 +462,24 @@ import Layout from "../layouts/Layout.astro";
                 const memberContainer = document.createElement("div");
                 memberContainer.className = "member-item";
 
+                const memberHeader = document.createElement("div");
+                memberHeader.className = "member-header";
+
                 const usernameHeader = document.createElement("h4");
                 usernameHeader.textContent = user.username;
-                memberContainer.appendChild(usernameHeader);
+                memberHeader.appendChild(usernameHeader);
+
+                const removeButton = document.createElement("button");
+                removeButton.textContent = "Remove";
+                removeButton.className = "remove-member-button danger-button";
+                removeButton.dataset.userId = user.user_id;
+                removeButton.dataset.username = user.username;
+                removeButton.addEventListener('click', () => {
+                    removeMemberHandler(projectId, user.user_id, user.username);
+                });
+                memberHeader.appendChild(removeButton);
+
+                memberContainer.appendChild(memberHeader);
 
                 const reportParagraph = document.createElement("p");
                 reportParagraph.className = "report-summary";
@@ -488,6 +508,36 @@ import Layout from "../layouts/Layout.astro";
         } catch (userError) {
             memberListElement.innerHTML =
                 "<div class='error-message'>Error loading member details.</div>";
+        }
+    }
+
+    async function removeMemberHandler(projectId: string, userId: string, username: string) {
+        const messageElement = document.getElementById("add-member-message");
+
+        if (!window.confirm(`Are you sure you want to remove ${username} from this project?`)) {
+            return;
+        }
+
+        messageElement.textContent = `Removing ${username}...`;
+        messageElement.className = "message info";
+
+        try {
+            await chorusAPI.removeMemberFromProject(projectId, userId);
+
+            messageElement.textContent = `Successfully removed ${username}.`;
+            messageElement.className = "message success";
+
+            await loadMemberList(projectId);
+
+            setTimeout(() => {
+                messageElement.textContent = "";
+                messageElement.className = "message";
+            }, 3000);
+
+        } catch (error: any) {
+            console.error(`Error removing member ${username}:`, error);
+            messageElement.textContent = `Failed to remove ${username}: ${error.message || 'Unknown error'}`;
+            messageElement.className = "message error";
         }
     }
 
@@ -568,7 +618,7 @@ import Layout from "../layouts/Layout.astro";
             if (!user || !user.user_id) {
                  throw new Error(`User '${username}' not found.`);
             }
-            await chorusAPI.addUserToProject(projectId, user.user_id);
+            await chorusAPI.addMemberToProject(projectId, user.user_id);
 
             messageElement.textContent = `Successfully added ${username}.`;
             messageElement.className = "message success";
@@ -585,6 +635,32 @@ import Layout from "../layouts/Layout.astro";
             console.error("Error adding member:", error);
             messageElement.textContent = `Failed to add member: ${error.message || 'Unknown error'}`;
             messageElement.className = "message error";
+        }
+    }
+
+    async function deleteProjectHandler(projectId: string) {
+        const messageElement = document.getElementById("delete-project-message");
+        const deleteButton = document.getElementById("delete-project-button") as HTMLButtonElement;
+
+        messageElement.textContent = "Deleting project...";
+        messageElement.className = "message info";
+        deleteButton.disabled = true;
+
+        try {
+            await chorusAPI.deleteProject(projectId);
+
+            messageElement.textContent = "Project successfully deleted. Redirecting...";
+            messageElement.className = "message success";
+
+            setTimeout(() => {
+                navigate("/");
+            }, 2000);
+
+        } catch (error: any) {
+            console.error("Error deleting project:", error);
+            messageElement.textContent = `Failed to delete project: ${error.message || 'Unknown error'}`;
+            messageElement.className = "message error";
+            deleteButton.disabled = false;
         }
     }
     
@@ -611,6 +687,8 @@ import Layout from "../layouts/Layout.astro";
         ) as HTMLElement;
         const addMemberButton = document.getElementById("add-member-button");
         const addMemberInput = document.getElementById("new-member-username") as HTMLInputElement;
+        const deleteProjectButton = document.getElementById("delete-project-button");
+        const deleteProjectMessage = document.getElementById("delete-project-message");
         
         if (
         timeRangeFromUrl &&
@@ -679,6 +757,14 @@ import Layout from "../layouts/Layout.astro";
                         });
                     }
 
+                    if (deleteProjectButton) {
+                        deleteProjectButton.addEventListener("click", () => {
+                            if (window.confirm("Are you sure you want to delete this project? This action cannot be undone.")) {
+                                deleteProjectHandler(projectId);
+                            }
+                        });
+                    }
+
                     if (barWrapper && groupEmotionBarElement && tooltipElement) {
                         barWrapper.addEventListener(
                         "mousemove",
@@ -738,6 +824,8 @@ import Layout from "../layouts/Layout.astro";
                     groupEmotionBarElement.style.display = "none";
                     const addMemberSection = document.getElementById("add-member-section");
                     if (addMemberSection) addMemberSection.style.display = 'none';
+                    if (deleteProjectButton) deleteProjectButton.style.display = 'none';
+                    if (deleteProjectMessage) deleteProjectMessage.style.display = 'none';
                 }
             }
         })
@@ -749,6 +837,8 @@ import Layout from "../layouts/Layout.astro";
             groupEmotionBarElement.style.display = "none";
             const addMemberSection = document.getElementById("add-member-section");
             if (addMemberSection) addMemberSection.style.display = 'none';
+            if (deleteProjectButton) deleteProjectButton.style.display = 'none';
+            if (deleteProjectMessage) deleteProjectMessage.style.display = 'none';
         });
     });
 </script>
@@ -772,6 +862,39 @@ import Layout from "../layouts/Layout.astro";
         color: #555;
     }
     
+    #delete-project-button {
+        padding: 8px 15px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: background-color 0.2s ease;
+    }
+
+    .danger-button {
+        background-color: #d9534f;
+        color: white;
+    }
+
+    .danger-button:hover {
+        background-color: #c9302c;
+    }
+
+    .danger-button:disabled {
+        background-color: #cccccc;
+        cursor: not-allowed;
+    }
+
+    #delete-project-message {
+        min-height: 20px;
+    }
+
+    #project-actions-bottom {
+        margin-top: 40px;
+        padding-top: 20px;
+        border-top: 1px solid #eee;
+    }
+
     #group-emotionbar-container {
         margin-top: 20px;
         margin-bottom: 30px;
@@ -890,13 +1013,27 @@ import Layout from "../layouts/Layout.astro";
         border: 1px solid #eee;
         border-radius: 8px;
         background-color: #f9f9f9;
+        position: relative;
+    }
+
+    .member-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 5px;
     }
     
     .member-item h4 {
         margin-top: 0;
-        margin-bottom: 5px;
+        margin-bottom: 0;
         font-size: 18px;
         color: #333;
+    }
+
+    .remove-member-button {
+        padding: 4px 8px;
+        font-size: 12px;
+        margin-left: 10px;
     }
     
     .report-summary {

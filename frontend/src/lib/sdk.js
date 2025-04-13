@@ -239,11 +239,21 @@ export default class ChorusAPI {
     /**
      * Adds a member to a project (using the stored token).
      * @param {string} projectId - The ID of the project.
-     * @param {string} email - The email address of the user to add.
+     * @param {string} user_id - The email address of the user to add.
      * @returns {Promise<{message: string}>} Confirmation message.
      */
-    async addMemberToProject(projectId, email) {
-        return this.request(`/projects/${projectId}/add-member`, 'POST', { email }); // Token added automatically
+    async addMemberToProject(projectId, user_id) {
+        return this.request(`/projects/${projectId}/add-member`, 'POST', { user_id }); // Token added automatically
+    }
+
+    /**
+     * Removes a member from a project (using the stored token).
+     * @param {string} projectId - The ID of the project.
+     * @param {string} user_id - The email address of the user to remove.
+     * @returns {Promise<{message: string}>} Confirmation message.
+     */
+    async removeMemberFromProject(projectId, user_id) {
+        return this.request(`/projects/${projectId}/remove-member`, 'DELETE', { user_id }); // Token added automatically
     }
 
     /**
