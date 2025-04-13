@@ -2,6 +2,8 @@
 import Layout from "../layouts/Layout.astro";
 import Titlebar from "../components/Titlebar.astro";
 import Button from "../components/Button.astro";
+import Modal from "../components/Modal.astro";
+import "../styles/style.css";
 ---
 
 <Layout>
@@ -10,8 +12,26 @@ import Button from "../components/Button.astro";
         <div id="project-list">
             <!-- Project items will be rendered here -->
         </div>
-        <a><Button>add project</Button></a>
+        <a onclick="document.getElementById('addPopup').showModal()"
+            ><Button>add project</Button></a
+        >
     </div>
+    <Modal id="addPopup">
+        <div>
+            <h2>Create project</h2>
+            <form>
+                <input type="text" style=" border-radius: 5px; margin: 20px; border: 2px solid teal;" placeholder="Project name">
+                <br>
+                <button
+                    class="close-btn"
+                    onclick="this.closest('dialog').close()"
+                    style="background: none;border: none;cursor: pointer;padding: 1.5rem;color: var(--crimson-red);}"
+                    >Cancel</button
+                >
+                <Button onClick="">Confirm</Button>
+            </form>
+        </div>
+    </Modal>
 </Layout>
 
 <script>
