@@ -104,25 +104,6 @@ footer {
         flex-direction: column;
     }
 }
-.github-container {
-    position: absolute;
-    top: 100%;
-    right: 0;
-}
-.link {
-    display: fixed;
-    align-items: center;
-    gap: 8px;
-    text-decoration: none;
-    color: inherit;
-}
-
-.github-icon {
-    width: 24px;
-    height: 24px;
-    vertical-align: middle;
-}
-
 .container {
     position: relative;
     text-align: center;

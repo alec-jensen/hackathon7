@@ -16,7 +16,7 @@ import AniButton from "../components/Button.astro"
                 <input id="password" type="password" placeholder="password" required>
             </div>
             <div>
-                <AniButton type="submit">
+                <AniButton class="submit-button">
                     sign up
                 </AniButton>
             </div>
@@ -40,7 +40,6 @@ import AniButton from "../components/Button.astro"
         });
 
         function handleSignup(event) {
-            event.preventDefault(); // Prevent default form submission
             const form = event.target;
             const usernameInput = form.querySelector('#username');
             const passwordInput = form.querySelector('#password');
@@ -95,14 +94,6 @@ import AniButton from "../components/Button.astro"
                 });
         }
 
-        // Add event listener after the DOM is loaded
-        document.addEventListener('DOMContentLoaded', () => {
-            const signupForm = document.getElementById('signup-form');
-            if (signupForm) {
-                signupForm.addEventListener('submit', handleSignup);
-            } else {
-                console.error('Signup form not found');
-            }
-        });
+        document.getElementById('submit-button')?.addEventListener('click', handleSignup);
     });
 </script>
