@@ -54,6 +54,8 @@ import AniButton from "../components/Button.astro"
             });
 
         function handleSignup(event) {
+            event.preventDefault(); // Prevent form submission
+            
             const form = event.target;
             const usernameInput = form.querySelector('#username');
             const passwordInput = form.querySelector('#password');
@@ -108,6 +110,6 @@ import AniButton from "../components/Button.astro"
                 });
         }
 
-        document.getElementById('submit-button')?.addEventListener('click', handleSignup);
+        document.getElementById('login-form')?.addEventListener('submit', handleSignup);
     });
 </script>
