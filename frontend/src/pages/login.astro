@@ -50,7 +50,9 @@ import "../styles/loginpage.css"
         chorusAPI.login(username, password)
             .then(data => {
                 console.log('Login successful:', data);
-                localStorage.setItem('token', data.access_token); // Store token in local storage
+                localStorage.setItem('token', data.access_token);
+
+                window.location.href = '/dashboard';
             })
             .catch(error => {
                 console.error('Login failed:', error);
