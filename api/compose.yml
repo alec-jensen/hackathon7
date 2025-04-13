@@ -1,0 +1,13 @@
+services:
+  chorus-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      MONGO_URI: ${MONGO_URI} # Load from .env
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY} # Load from .env
+      GEMINI_API_KEY: ${GEMINI_API_KEY} # Load from .env
+    env_file:
+      - .env # Specify the .env file
