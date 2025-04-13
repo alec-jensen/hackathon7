@@ -18,11 +18,15 @@
     --shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
+* {
+    font-family: "Special Gothic Expanded One", sans-serif;
+}
+
 /* ===== Base Styles ===== */
 body {
     background-color: var(--parchment);
     color: var(--charcoal);
-    font-family: "Trebuchet MS", "Arial", sans-serif;
+    font-family: "Special Gothic Expanded One", sans-serif;
     line-height: 1.6;
     margin: 0;
 }
@@ -32,8 +36,7 @@ h1,
 h2,
 h3 {
     color: var(--pirate-teal);
-    font-family:
-        "Pirata One", cursive; /* Use a pirate-themed font if available */
+    font-family: "Special Gothic Expanded One", sans-serif;
 }
 
 a {
