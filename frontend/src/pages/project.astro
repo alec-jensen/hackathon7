@@ -270,6 +270,49 @@ import "../styles/style.css";
         }
     }
 
+    async function deleteProjectHandler(projectId: string) {
+        const messageElement = document.getElementById("delete-project-message");
+        const deleteButton = document.getElementById("delete-project-button") as HTMLButtonElement;
+
+        if (!messageElement || !deleteButton) return;
+
+        messageElement.textContent = "Deleting project...";
+        messageElement.className = "message info";
+        deleteButton.disabled = true;
+
+        try {
+            await chorusAPI.deleteProject(projectId);
+            messageElement.textContent = "Project deleted successfully. Redirecting...";
+            messageElement.className = "message success";
+            // Redirect to dashboard after a short delay
+            setTimeout(() => {
+                navigate("/dashboard");
+            }, 2000);
+        } catch (error: any) {
+            console.error("Error deleting project:", error);
+            let detail = error.message || "Unknown error";
+            try {
+                const match = error.message.match(/details: (.*)/);
+                if (match && match[1]) {
+                    const errorDetails = JSON.parse(match[1]);
+                    if (errorDetails.detail) {
+                        detail = errorDetails.detail;
+                    }
+                }
+            } catch (parseError) { }
+            messageElement.textContent = `Failed to delete project: ${detail}`;
+            messageElement.className = "message error";
+            deleteButton.disabled = false; // Re-enable button on error
+            // Optionally clear the error message after some time
+            setTimeout(() => {
+                if (messageElement.textContent === `Failed to delete project: ${detail}`) {
+                    messageElement.textContent = "";
+                    messageElement.className = "message";
+                }
+            }, 5000);
+        }
+    }
+
     async function loadMemberList(projectId: string, ownerId: string | null) {
         const memberListElement = document.getElementById("member-list");
         memberListElement.innerHTML = "Loading members...";
@@ -613,7 +656,17 @@ import "../styles/style.css";
                                             "Are you sure you want to delete this project? This action cannot be undone.",
                                         )
                                     ) {
-                                        deleteProjectHandler(projectId);
+                                        // Ensure projectId is passed here
+                                        if (projectId) {
+                                            deleteProjectHandler(projectId);
+                                        } else {
+                                            console.error("Project ID is missing, cannot delete.");
+                                            const msgEl = document.getElementById("delete-project-message");
+                                            if (msgEl) {
+                                                msgEl.textContent = "Error: Project ID not found.";
+                                                msgEl.className = "message error";
+                                            }
+                                        }
                                     }
                                 },
                             );
