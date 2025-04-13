@@ -9,12 +9,10 @@ import "../styles/style.css";
 <Layout>
     <div class="container">
         <h1>Projects</h1>
+        <a onclick="document.getElementById('addPopup').showModal()"><Button>add project</Button></a>
         <div id="project-list">
             <!-- Project items will be rendered here -->
         </div>
-        <a onclick="document.getElementById('addPopup').showModal()"
-        ><Button>add project</Button></a
-        >
     </div>
     <Modal id="addPopup">
         <div>
