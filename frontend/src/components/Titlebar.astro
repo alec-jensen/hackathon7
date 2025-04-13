@@ -1,8 +1,8 @@
 ---
 const { title = "chorus" } = Astro.props;
 import { Image } from "astro:assets";
-import User from "../assets/user.svg";
 import Logo from "../assets/chorus.svg";
+import UserDropdown from "./UserDropdown.astro";
 ---
 
 <style>
@@ -29,6 +29,6 @@ import Logo from "../assets/chorus.svg";
         <Image src={Logo} alt="Chorus" width={64} height={16} />
     </div>
     <div class="user">
-        <Image src={User} alt="User" width={32} height={32} />
+        <UserDropdown />
     </div>
 </header>
