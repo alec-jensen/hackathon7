@@ -13,7 +13,7 @@ load_dotenv()
 
 # Security configurations
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 43800  # 30 days
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 if not JWT_SECRET_KEY:
     raise ValueError("JWT_SECRET_KEY is not set in the environment variables")

@@ -28,6 +28,14 @@ import AniButton from "../components/Button.astro"
 <script>
     import { chorusAPI } from '../lib/sdk.js';
 
+    chorusAPI.isLoggedIn().then(isLoggedIn => {
+        if (isLoggedIn) {
+            window.location.href = '/dashboard';
+        }
+    }).catch(error => {
+        console.error('Error checking login status:', error);
+    });
+
     function handleSignup(event) {
         event.preventDefault(); // Prevent default form submission
         const form = event.target;
@@ -38,7 +46,6 @@ import AniButton from "../components/Button.astro"
         const username = usernameInput.value;
         const password = passwordInput.value;
         errorElement.textContent = ''; // Clear previous errors
-        successElement.textContent = ''; // Clear previous success messages
 
         console.log('Attempting signup with:', { username, password });
 

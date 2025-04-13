@@ -28,6 +28,14 @@ import AniButton from "../components/Button.astro"
 <script>
     import { chorusAPI } from '../lib/sdk.js';
 
+    chorusAPI.isLoggedIn().then(isLoggedIn => {
+        if (isLoggedIn) {
+            window.location.href = '/dashboard';
+        }
+    }).catch(error => {
+        console.error('Error checking login status:', error);
+    });
+
     function handleLogin(event) {
         event.preventDefault(); // Prevent default form submission
         const form = event.target;
