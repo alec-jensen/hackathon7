@@ -6,3 +6,28 @@ import Titlebar from "../components/Titlebar.astro";
 <Layout>
     <div><Titlebar /></div>
 </Layout>
+======= ---
+
+<Layout />
+
+<script>
+    import { chorusAPI } from "../lib/sdk.js";
+    import { navigate } from "astro:transitions/client";
+
+    document.addEventListener("astro:page-load", () => {
+        chorusAPI
+            .isLoggedIn()
+            .then((isLoggedIn) => {
+                if (!isLoggedIn) {
+                    setTimeout(() => {
+                        // Redirect to login page after 1 second
+                        navigate("/login");
+                    }, 1000);
+                }
+            })
+            .catch((error) => {
+                console.error("Dashboard: Error checking login status:", error);
+            });
+    });
+</script>
+>>>>>>> 0ce68a5127c7da1e1c537bb652bd6ea1fdfc1014

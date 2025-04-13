@@ -1,5 +1,13 @@
 ---
+interface Props {
+    href?: string;
+    target?: string;
+    class?: string;
+    id?: string; // Add id prop
 
+}
+
+const { href, target, class: buttonClass, id } = Astro.props as Props; // Destructure id
 ---
 
 <style>
@@ -19,6 +27,11 @@
     }
 
     .button {
+        display: inline-flex; /* Use flexbox for alignment */
+        align-items: center; /* Vertically center content */
+        justify-content: center; /* Horizontally center content */
+        gap: 0.5rem; /* Add space between text and icon */
+        text-decoration: none; /* Remove underline from links */
         background-color: var(--pirate-teal);
         color: var(--parchment);
         border: none;
@@ -34,6 +47,10 @@
         position: relative;
         overflow: hidden;
         z-index: 0;
+        -webkit-user-select: none; /* Safari */
+        -moz-user-select: none; /* Firefox */
+        -ms-user-select: none; /* IE10+/Edge */
+        user-select: none; /* Standard */
     }
 
     .button::before {
@@ -61,8 +78,23 @@
     .button:active {
         transform: scale(0.98);
     }
+
+    .button * {
+        -webkit-user-select: none; /* Safari */        
+        -moz-user-select: none; /* Firefox */
+        -ms-user-select: none; /* IE10+/Edge */
+        user-select: none; /* Standard */
+    }
 </style>
 
-<button class="button">
-    <slot />
-</button>
+{
+    href ? (
+        <a href={href} class={`button ${buttonClass || ''}`} target={target} id={id}>
+            <slot />
+        </a>
+    ) : (
+        <button type="submit" class={`button ${buttonClass || ''}`} id={id}> {/* Add type="submit" and id */}
+            <slot />
+        </button>
+    )
+}
