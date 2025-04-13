@@ -1,13 +1,14 @@
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import HttpUrl, BaseModel  # Add BaseModel
-from typing import Optional  # Add Optional
+from fastapi import APIRouter, HTTPException, Depends, Query  # Add Query
+from pydantic import HttpUrl, BaseModel
+from typing import Optional, List  # Add List
 from ..models import Project
 from ..auth import get_current_user
-from ..database import projects_collection, users_collection, emotions_collection
+from ..database import projects_collection, users_collection, emotions_collection, mood_reports_collection  # Add mood_reports_collection
 import uuid
 from git import Repo, GitCommandError
-from datetime import datetime, timedelta, timezone  # Add timezone
-from bson import ObjectId  # Import ObjectId
+from datetime import datetime, timedelta, timezone
+from bson import ObjectId
+import pymongo  # Import pymongo for sorting
 
 router = APIRouter()
 
@@ -179,3 +180,82 @@ async def get_project_emotions(
             emotion["_id"] = str(emotion["_id"])
 
     return {"emotions": emotions_data}
+
+@router.get("/{project_id}/reports/individual", response_model=List[dict])
+async def get_individual_reports(
+    project_id: str,
+    user_id: str = Query(..., description="The ID of the user whose reports to fetch"),
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(10, ge=1, le=100, description="Number of reports per page"),
+    current_user = Depends(get_current_user)
+):
+    project = await projects_collection.find_one({"project_id": project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    if current_user.user_id not in project["members"]:
+        raise HTTPException(status_code=403, detail="Only project members can view reports")
+
+    # Optional: Check if the target user_id is also a member (or owner)
+    if user_id not in project["members"]:
+         raise HTTPException(status_code=404, detail=f"User {user_id} is not a member of this project")
+
+    skip = (page - 1) * page_size
+    reports_cursor = mood_reports_collection.find({
+        "project_id": project_id,
+        "user_id": user_id,
+        "report_type": "individual"
+    }).sort("report_timestamp", pymongo.DESCENDING).skip(skip).limit(page_size)
+
+    reports = await reports_cursor.to_list(length=page_size)
+
+    # Convert ObjectId to string
+    for report in reports:
+        if "_id" in report and isinstance(report["_id"], ObjectId):
+            report["_id"] = str(report["_id"])
+        # Convert datetime objects to ISO format strings if needed for JSON serialization
+        if "report_timestamp" in report and isinstance(report["report_timestamp"], datetime):
+            report["report_timestamp"] = report["report_timestamp"].isoformat()
+        if "start_time" in report and isinstance(report["start_time"], datetime):
+            report["start_time"] = report["start_time"].isoformat()
+        if "end_time" in report and isinstance(report["end_time"], datetime):
+            report["end_time"] = report["end_time"].isoformat()
+
+
+    return reports
+
+@router.get("/{project_id}/reports/group", response_model=List[dict])
+async def get_group_reports(
+    project_id: str,
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(10, ge=1, le=100, description="Number of reports per page"),
+    current_user = Depends(get_current_user)
+):
+    project = await projects_collection.find_one({"project_id": project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    if current_user.user_id not in project["members"]:
+        raise HTTPException(status_code=403, detail="Only project members can view reports")
+
+    skip = (page - 1) * page_size
+    reports_cursor = mood_reports_collection.find({
+        "project_id": project_id,
+        "report_type": "group"
+    }).sort("report_timestamp", pymongo.DESCENDING).skip(skip).limit(page_size)
+
+    reports = await reports_cursor.to_list(length=page_size)
+
+    # Convert ObjectId to string
+    for report in reports:
+        if "_id" in report and isinstance(report["_id"], ObjectId):
+            report["_id"] = str(report["_id"])
+        # Convert datetime objects to ISO format strings if needed for JSON serialization
+        if "report_timestamp" in report and isinstance(report["report_timestamp"], datetime):
+            report["report_timestamp"] = report["report_timestamp"].isoformat()
+        if "start_time" in report and isinstance(report["start_time"], datetime):
+            report["start_time"] = report["start_time"].isoformat()
+        if "end_time" in report and isinstance(report["end_time"], datetime):
+            report["end_time"] = report["end_time"].isoformat()
+
+    return reports

@@ -32,12 +32,8 @@ async def get_commits_for_user(
     project_id: str, user_email: str, start_time: datetime, end_time: datetime
 ) -> list[str]:
     """Fetch commit messages for a user within a project and time range."""
-    print(
-        f"    DEBUG: Searching commits for user '{user_email}' in project '{project_id}' between {start_time} and {end_time}"
-    )
     project = await projects_collection.find_one({"project_id": project_id})
     if not project or "repos" not in project:
-        print(f"    DEBUG: Project '{project_id}' not found or has no repos.")
         return []
 
     all_commit_messages = []
@@ -46,13 +42,11 @@ async def get_commits_for_user(
     for repo_url in project["repos"]:
         repo_name = repo_url.split("/")[-1].replace(".git", "")
         repo_path = os.path.join(repo_base_path, repo_name)
-        print(f"    DEBUG: Processing repo URL: {repo_url} at path: {repo_path}")
 
         try:
             # Clone or pull the repo
             if os.path.exists(repo_path):
                 repo = Repo(repo_path)
-                print(f"    DEBUG: Fetching updates for existing repo: {repo_path}")
                 # Add fetch before pull for robustness
                 try:
                     repo.remotes.origin.fetch()
@@ -62,7 +56,6 @@ async def get_commits_for_user(
                         f"    WARNING: Git pull/fetch failed for {repo_url}: {pull_err}. Proceeding with local history."
                     )
             else:
-                print(f"    DEBUG: Cloning repo: {repo_url} to {repo_path}")
                 os.makedirs(repo_path, exist_ok=True)
                 repo = Repo.clone_from(repo_url, repo_path)
 
@@ -81,47 +74,26 @@ async def get_commits_for_user(
                 # Convert to UTC just to be certain it's the correct timezone object
                 end_time = end_time.astimezone(timezone.utc)
 
-            print(
-                f"    DEBUG: Iterating commits (using UTC range: {start_time} to {end_time})"
-            )
             commits = repo.iter_commits()
-            commit_count_in_range = 0
-            found_user_commits = 0
             for commit in commits:
-                commit_count_in_range += 1
                 # Ensure commit datetime is timezone-aware (UTC) for comparison
                 commit_dt_aware = commit.authored_datetime
                 if commit_dt_aware.tzinfo is not None:
                     commit_dt_utc = commit_dt_aware.astimezone(timezone.utc)
                 else:
+                    # Keep this warning as it indicates potential data issues
                     print(f"    WARNING: Commit {commit.hexsha} has naive datetime {commit_dt_aware}. Assuming UTC.")
                     commit_dt_utc = commit_dt_aware.replace(tzinfo=timezone.utc)
-
-                print(
-                    f"    DEBUG: Checking commit {commit.hexsha} by {commit.author.email} at {commit_dt_utc}"
-                )
-                print(
-                    f"    DEBUG: Author email matches: {commit.author.email == user_email}"
-                )
 
                 # Compare using the UTC-aware datetime
                 if (
                     commit_dt_utc < start_time
                     or commit_dt_utc > end_time
                 ):
-                    print(f"    DEBUG: Commit {commit.hexsha} ({commit_dt_utc}) not in range ({start_time} to {end_time}).")
                     continue
                 if commit.author.email == user_email:
-                    found_user_commits += 1
                     commit_message = commit.message.strip()
                     all_commit_messages.append(commit_message)
-                    print(
-                        f"    DEBUG: Found commit by {user_email}: {commit.hexsha[:7]} - '{commit_message[:50]}...'"
-                    )
-
-            print(
-                f"    DEBUG: Checked {commit_count_in_range} commits for repo {repo_name}. Found {found_user_commits} matching user {user_email} within time range."
-            )
 
         except InvalidGitRepositoryError:
             print(f"    ERROR: Invalid repository path: {repo_path} for URL {repo_url}")
@@ -131,9 +103,6 @@ async def get_commits_for_user(
             print(f"    ERROR: Unexpected error processing repo {repo_url}: {e}")
             traceback.print_exc()
 
-    print(
-        f"    DEBUG: Total commits found for {user_email} in project {project_id}: {len(all_commit_messages)}"
-    )
     return all_commit_messages
 
 
@@ -265,7 +234,6 @@ async def get_mood_summary_from_llm(
             contents=prompt,
             config=config
         )
-        print("RAW RESPONSE:", response.model_dump_json())
         full_response = response.text
         if not full_response:
             print("    ERROR: LLM returned an empty response.")
