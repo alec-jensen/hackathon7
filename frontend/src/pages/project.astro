@@ -1,5 +1,6 @@
 ---
 import Layout from "../layouts/Layout.astro";
+import "../styles/style.css";
 ---
 
 <Layout>
@@ -42,7 +43,7 @@ import Layout from "../layouts/Layout.astro";
         
         <h2>Members</h2>
         <div id="add-member-section">
-            <input type="text" id="new-member-username" placeholder="Enter username to add" />
+            <input type="text" id="new-member-username" style="max-width: 25%; min-width: 300px" placeholder="Enter username to add" />
             <button id="add-member-button">Add Member</button>
             <p id="add-member-message" class="message"></p>
         </div>
@@ -1069,6 +1070,7 @@ import Layout from "../layouts/Layout.astro";
         padding: 4px 8px;
         font-size: 12px;
         margin-left: 10px;
+        color: var(--crimson-red);
     }
     
     .report-summary {
