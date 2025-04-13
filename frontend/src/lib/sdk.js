@@ -290,6 +290,14 @@ export default class ChorusAPI {
         return this.request(`/projects/${projectId}/emotions`, 'GET', null, {}, queryParams);
     }
 
+    async getProjectAverageEmotions(projectId, startTime, endTime) {
+        const queryParams = {};
+        if (startTime !== undefined && startTime !== null) queryParams.start_time = startTime;
+        if (endTime !== undefined && endTime !== null) queryParams.end_time = endTime;
+        // Token added automatically by request()
+        return this.request(`/projects/${projectId}/average-mood`, 'GET', null, {}, queryParams);
+    }
+
     /**
      * Gets paginated individual mood reports for a specific user within a project (using the stored token).
      * @param {string} projectId - The ID of the project.

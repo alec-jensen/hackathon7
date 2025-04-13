@@ -1,17 +1,105 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import { chorusAPI } from '../lib/sdk.js';
+import Layout from "../layouts/Layout.astro";
 ---
 
 <Layout>
-  <div id="project-container">
-    <h1>Loading project...</h1>
-  </div>
+    <div id="project-container">
+        <h1 id="project-name">Loading project...</h1>
+        <p id="project-description"></p>
+
+        <select id="time-range">
+            <option value="1m">Last 1 minute</option>
+            <option value="5m">Last 5 minutes</option>
+            <option value="10m">Last 10 minutes</option>
+            <option value="30m" selected>Last 30 minutes</option>
+            <option value="1h">Last 1 hour</option>
+            <option value="6h">Last 6 hours</option>
+            <option value="12h">Last 12 hours</option>
+            <option value="24h">Last 24 hours</option>
+        </select>
+        <div id="group-emotionbar-container">
+            <h3>Group Emotion Over Time</h3>
+            <div class="emotion-gradient-bar"></div>
+            <div id="group-emotionbar-key">
+                <ul>
+                    <li id="key-anger">Anger</li>
+                    <li id="key-disgust">Disgust</li>
+                    <li id="key-fear">Fear</li>
+                    <li id="key-happiness">Happiness</li>
+                    <li id="key-sadness">Sadness</li>
+                    <li id="key-surprise">Surprise</li>
+                    <li id="key-neutral">Neutral</li>
+                </ul>
+            </div>
+        </div>
+
+        <h2>Members</h2>
+        <div id="member-list">Loading members...</div>
+    </div>
 </Layout>
 
 <script>
     import { chorusAPI } from "../lib/sdk.js";
     import { navigate } from "astro:transitions/client";
+
+    // --- Emotion Bar Logic ---
+
+    function getEmotionColorFromCSS(emotion) {
+        const emotionLower = emotion.toLowerCase();
+        const varName = `--color-${emotionLower}`;
+        const color = getComputedStyle(document.documentElement)
+            .getPropertyValue(varName)
+            .trim();
+        console.log(
+            `Emotion: ${emotion}, Color Var: ${varName}, Retrieved Color: ${color}`,
+        );
+        return color || "#cccccc";
+    }
+
+    function createEmotionGradient(emotionData) {
+        emotionData.sort((a, b) => a.time - b.time);
+
+        if (emotionData.length > 0 && emotionData[0].time !== 0) {
+            emotionData.unshift({ time: 0, emotion: emotionData[0].emotion });
+        }
+        if (
+            emotionData.length > 0 &&
+            emotionData[emotionData.length - 1].time !== 100
+        ) {
+            emotionData.push({
+                time: 100,
+                emotion: emotionData[emotionData.length - 1].emotion,
+            });
+        }
+
+        if (emotionData.length === 0) {
+            return `linear-gradient(to right, ${getEmotionColorFromCSS("neutral")}, ${getEmotionColorFromCSS("neutral")})`;
+        }
+        if (emotionData.length === 1) {
+            const color = getEmotionColorFromCSS(emotionData[0].emotion);
+            return `linear-gradient(to right, ${color}, ${color})`;
+        }
+
+        const gradientStops = emotionData.map((point) => {
+            const color = getEmotionColorFromCSS(point.emotion);
+            return `${color} ${point.time}%`;
+        });
+
+        return `linear-gradient(to right, ${gradientStops.join(", ")})`;
+    }
+
+    // --- End Emotion Bar Logic ---
+
+    // Helper function to parse time range string (e.g., "5m", "1h") to seconds
+    function parseTimeRangeToSeconds(timeRangeString: string): number {
+        const value = parseInt(timeRangeString.slice(0, -1));
+        const unit = timeRangeString.slice(-1).toLowerCase();
+        switch (unit) {
+            case 'm': return value * 60;
+            case 'h': return value * 60 * 60;
+            default: return value; // Assume seconds if no unit or unknown
+        }
+    }
 
     document.addEventListener("astro:page-load", () => {
         chorusAPI
@@ -19,55 +107,307 @@ import { chorusAPI } from '../lib/sdk.js';
             .then((isLoggedIn) => {
                 if (!isLoggedIn) {
                     setTimeout(() => {
-                        // Redirect to login page after 1 second
                         navigate("/login");
                     }, 1000);
                 } else {
-                    const urlParams = new URLSearchParams(window.location.search);
+                    const urlParams = new URLSearchParams(
+                        window.location.search,
+                    );
                     const projectId = urlParams.get("project_id");
+
+                    const projectNameElement =
+                        document.getElementById("project-name");
+                    const projectDescriptionElement = document.getElementById(
+                        "project-description",
+                    );
+                    const memberListElement =
+                        document.getElementById("member-list");
+                    const groupEmotionBarElement = document.querySelector(
+                        "#group-emotionbar-container .emotion-gradient-bar",
+                    );
+                    const container =
+                        document.getElementById("project-container");
 
                     if (projectId) {
                         chorusAPI
                             .getProjectDetails(projectId)
-                            .then(async (project) => { // Make the handler async
-                                const container = document.getElementById("project-container");
-                                container.innerHTML = `
-                                    <h1>${project.name}</h1>
-                                    <p>${project.description || "No description available."}</p>
-                                    <h2>Members</h2>
-                                    <ul id="member-list">Loading members...</ul>
-                                `;
+                            .then(async (project) => {
+                                projectNameElement.textContent = project.name;
+                                projectDescriptionElement.textContent =
+                                    project.description ||
+                                    "No description available.";
 
-                                // Fetch usernames for each member ID
-                                try {
-                                    const memberPromises = project.members.map(memberId =>
-                                        chorusAPI.getUserDetailsById(memberId)
-                                    );
-                                    const memberDetails = await Promise.all(memberPromises);
-                                    const memberList = document.getElementById("member-list");
-                                    memberList.innerHTML = memberDetails.map(user =>
-                                        `<li>${user.username}</li>`
-                                    ).join("");
-                                } catch (userError) {
-                                    console.error("Error loading member details:", userError);
-                                    const memberList = document.getElementById("member-list");
-                                    memberList.innerHTML = "<li>Error loading some member details.</li>";
+                                // --- Fetch and Process Emotions ---
+                                const timeRangeSelect = document.getElementById(
+                                    "time-range",
+                                ) as HTMLSelectElement;
+                                const selectedTimeRangeValue =
+                                    timeRangeSelect.options[timeRangeSelect.selectedIndex]
+                                        .value;
+
+                                const timeRangeSeconds = parseTimeRangeToSeconds(selectedTimeRangeValue);
+                                const timeRangeEnd = Math.floor(Date.now() / 1000);
+                                const timeRangeStart = timeRangeEnd - timeRangeSeconds;
+
+                                // Clear previous gradient while loading new data
+                                if (groupEmotionBarElement) {
+                                    groupEmotionBarElement.style.backgroundImage = `linear-gradient(to right, ${getEmotionColorFromCSS("neutral")}, ${getEmotionColorFromCSS("neutral")})`;
                                 }
+
+                                chorusAPI
+                                    .getProjectAverageEmotions(
+                                        projectId,
+                                        timeRangeStart,
+                                        timeRangeEnd,
+                                    )
+                                    .then((result) => {
+                                        const emotionData: {
+                                            time: number;
+                                            emotion: string;
+                                        }[] = [];
+                                        const duration = timeRangeEnd - timeRangeStart;
+
+                                        result.emotions.forEach((emotion) => {
+                                            // Find the dominant emotion name (key)
+                                            let dominantEmotionName = 'neutral'; // Default
+                                            let maxScore = -1;
+                                            for (const [name, scoreData] of Object.entries(emotion.emotions)) {
+                                                if (scoreData.value > maxScore) {
+                                                    maxScore = scoreData.value;
+                                                    dominantEmotionName = name;
+                                                }
+                                            }
+
+                                            // Normalize timestamp to percentage (0-100)
+                                            let normalizedTime = 0;
+                                            if (duration > 0) {
+                                                normalizedTime = ((emotion.timestamp - timeRangeStart) / duration) * 100;
+                                            } else if (result.emotions.length > 0) {
+                                                // Handle zero duration (all timestamps are the same)
+                                                normalizedTime = (result.emotions.indexOf(emotion) / (result.emotions.length -1 || 1)) * 100;
+                                            }
+                                            // Clamp time between 0 and 100
+                                            normalizedTime = Math.max(0, Math.min(100, normalizedTime));
+
+                                            emotionData.push({
+                                                time: normalizedTime,
+                                                emotion: dominantEmotionName, // Use the extracted dominant emotion name
+                                            });
+                                        });
+
+                                        console.log("Emotion Data:", emotionData);
+
+                                        // Create and apply gradient AFTER processing data
+                                        const gradientStyle = createEmotionGradient(emotionData);
+                                        if (groupEmotionBarElement) {
+                                            groupEmotionBarElement.style.backgroundImage = gradientStyle;
+                                        } else {
+                                            console.error("Group emotion bar element not found after loading emotions!");
+                                        }
+                                    })
+                                    .catch((error) => {
+                                        console.error("Error loading project emotions:", error);
+                                        if (groupEmotionBarElement) {
+                                             groupEmotionBarElement.style.backgroundImage = `linear-gradient(to right, red, red)`; // Indicate error
+                                        }
+                                    });
+                                // --- End Fetch and Process Emotions ---
+
+                                // --- Process Members ---
+                                try {
+                                    const memberPromises = project.members.map(
+                                        (memberId) =>
+                                            chorusAPI.getUserDetailsById(
+                                                memberId,
+                                            ),
+                                    );
+                                    const memberDetails =
+                                        await Promise.all(memberPromises);
+
+                                    memberListElement.innerHTML = "";
+
+                                    memberDetails.forEach((user) => {
+                                        const memberDiv =
+                                            document.createElement("div");
+                                        memberDiv.className = "member-item";
+
+                                        const usernameText =
+                                            document.createTextNode(
+                                                user.username,
+                                            );
+                                        memberDiv.appendChild(usernameText);
+
+                                        memberListElement.appendChild(
+                                            memberDiv,
+                                        );
+                                    });
+                                } catch (userError) {
+                                    console.error(
+                                        "Error loading member details:",
+                                        userError,
+                                    );
+                                    memberListElement.innerHTML =
+                                        "<div class='error-message'>Error loading some member details.</div>";
+                                }
+                                // --- End Process Members ---
                             })
                             .catch((error) => {
-                                console.error("Error loading project details:", error);
-                                const container = document.getElementById("project-container");
-                                container.innerHTML = "<p>Failed to load project details.</p>";
+                                console.error(
+                                    "Error loading project details:",
+                                    error,
+                                );
+                                projectNameElement.textContent = "Error";
+                                projectDescriptionElement.textContent =
+                                    "Failed to load project details.";
+                                memberListElement.innerHTML = "";
+                                if (groupEmotionBarElement)
+                                    groupEmotionBarElement.style.display =
+                                        "none";
                             });
                     } else {
                         console.error("No project_id found in URL.");
-                        const container = document.getElementById("project-container");
-                        container.innerHTML = "<p>Invalid project ID.</p>";
+                        projectNameElement.textContent = "Error";
+                        projectDescriptionElement.textContent =
+                            "Invalid project ID.";
+                        memberListElement.innerHTML = "";
+                        if (groupEmotionBarElement)
+                            groupEmotionBarElement.style.display = "none";
                     }
                 }
             })
             .catch((error) => {
                 console.error("Error checking login status:", error);
+                const projectNameElement =
+                    document.getElementById("project-name");
+                const projectDescriptionElement = document.getElementById(
+                    "project-description",
+                );
+                const memberListElement =
+                    document.getElementById("member-list");
+                const groupEmotionBarElement = document.querySelector(
+                    "#group-emotionbar-container .emotion-gradient-bar",
+                );
+
+                projectNameElement.textContent = "Error";
+                projectDescriptionElement.textContent =
+                    "Could not verify login status.";
+                memberListElement.innerHTML = "";
+                if (groupEmotionBarElement)
+                    groupEmotionBarElement.style.display = "none";
             });
     });
 </script>
+
+<style>
+    #project-container {
+        padding: 20px;
+        font-family: sans-serif;
+    }
+
+    #project-name {
+        font-size: 24px;
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+
+    #project-description {
+        margin-top: 0;
+        margin-bottom: 20px;
+        font-size: 16px;
+        color: #555;
+    }
+
+    #group-emotionbar-container {
+        margin-top: 20px;
+        margin-bottom: 30px;
+    }
+
+    .emotion-gradient-bar {
+        width: 100%;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        background-color: #eee;
+        display: block;
+    }
+
+    #group-emotionbar-container .emotion-gradient-bar {
+        height: 30px;
+        margin-bottom: 10px;
+    }
+
+    #group-emotionbar-key ul {
+        list-style-type: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    #group-emotionbar-key li {
+        display: inline-block;
+        margin-right: 15px;
+        padding: 4px 0;
+        font-size: 14px;
+        vertical-align: middle;
+    }
+
+    #group-emotionbar-key li::before {
+        content: "";
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 6px;
+        vertical-align: middle;
+    }
+
+    :root {
+        --color-anger: rgb(239, 83, 80);
+        --color-disgust: rgb(102, 187, 106);
+        --color-fear: rgb(66, 165, 245);
+        --color-happiness: rgb(255, 213, 79);
+        --color-sadness: rgb(126, 87, 194);
+        --color-surprise: rgb(255, 167, 38);
+        --color-neutral: rgb(189, 189, 189);
+    }
+
+    #key-anger::before {
+        background-color: var(--color-anger);
+    }
+    #key-disgust::before {
+        background-color: var(--color-disgust);
+    }
+    #key-fear::before {
+        background-color: var(--color-fear);
+    }
+    #key-happiness::before {
+        background-color: var(--color-happiness);
+    }
+    #key-sadness::before {
+        background-color: var(--color-sadness);
+    }
+    #key-surprise::before {
+        background-color: var(--color-surprise);
+    }
+    #key-neutral::before {
+        background-color: var(--color-neutral);
+    }
+
+    h2 {
+        margin-top: 20px;
+        margin-bottom: 10px;
+        font-size: 20px;
+    }
+
+    #member-list {
+        padding-left: 0;
+    }
+
+    #member-list > div,
+    #member-list .member-item {
+        margin-bottom: 15px;
+        display: block;
+    }
+
+    #member-list .error-message {
+        color: red;
+    }
+</style>
