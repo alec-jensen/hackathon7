@@ -159,6 +159,15 @@ export default class ChorusAPI {
     }
 
     /**
+     * Gets the details of a specific user by their ID.
+     * @param {string} userId - The ID of the user.
+     * @returns {Promise<{username: string}>} The user's details.
+     */
+    async getUserDetailsById(userId) {
+        return this.request(`/users/${userId}`, 'GET'); // Token added automatically by request()
+    }
+
+    /**
      * Updates the details of the currently authenticated user (using the stored token).
      * @param {object} updates - An object containing the fields to update (e.g., { username: 'new_name', email: 'new@example.com' }).
      * @returns {Promise<{user_id: string, username: string, email: string|null, disabled: boolean, api_keys: Array<string>}>} The updated user's details.
