@@ -1,7 +1,7 @@
 ---
 import "../styles/style.css";
 import { Image } from "astro:assets";
-import Logos from "../components/logos.astro";
+import wordmark from "../assets/chorus.svg";
 ---
 
 <div id="container">
@@ -11,7 +11,7 @@ import Logos from "../components/logos.astro";
         </section>
     </main>
     <div>
-        <Logos></Logos>
+        <Image src={wordmark} alt="wordmark" />
     </div>
     <section id="links">
         <a href="https://github.com/alec-jensen/hackathon7"
