@@ -51,7 +51,7 @@ async def create_user(data: CreateUserRequest):
     await users_collection.insert_one(user_data)
     return {"message": "User created successfully", "user_id": user_id}
 
-@router.get("/{user_id}", response_model=PublicUserInfo)
+@router.get("/users/{user_id}", response_model=PublicUserInfo)
 async def get_public_user_info(user_id: str):
     user_data = await users_collection.find_one({"user_id": user_id})
     if not user_data:

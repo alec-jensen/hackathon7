@@ -164,7 +164,7 @@ export default class ChorusAPI {
      * @returns {Promise<{username: string}>} The user's details.
      */
     async getUserDetailsById(userId) {
-        return this.request(`/users/${userId}`, 'GET'); // Token added automatically by request()
+        return this.request(`/users/users/${userId}`, 'GET'); // Token added automatically by request()
     }
 
     /**
