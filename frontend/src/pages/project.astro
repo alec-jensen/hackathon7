@@ -42,7 +42,7 @@ import "../styles/style.css";
         </p>
 
         <h2>Members</h2>
-        <div id="add-member-section">
+        <div id="add-member-section" style="display: none;">
             <input
                 type="text"
                 id="new-member-username"
@@ -53,6 +53,19 @@ import "../styles/style.css";
             <p id="add-member-message" class="message"></p>
         </div>
         <div id="member-list">Loading members...</div>
+
+        <h2>Repositories</h2>
+        <div id="add-repo-section" style="display: none;">
+            <input
+                type="text"
+                id="new-repo-url"
+                style="max-width: 50%; min-width: 300px"
+                placeholder="Enter Git repository URL"
+            />
+            <button id="add-repo-button">Add Repository</button>
+            <p id="add-repo-message" class="message"></p>
+        </div>
+        <div id="repo-list">Loading repositories...</div>
 
         <div id="project-actions-bottom">
             <button id="delete-project-button" class="danger-button"
@@ -104,329 +117,156 @@ import "../styles/style.css";
     }
 
     let currentDataTimeRangeEnd: number | null = null;
-    let currentOwnerId: string | null = null; // Declare ownerId variable accessible to handlers
+    let currentOwnerId: string | null = null;
+    let currentUserDetails: { user_id: string } | null = null;
 
-    function createEmotionGradient(
-        emotionData: { time: number; emotion: string }[],
-        dataDuration: number,
-    ) {
-        emotionData.sort((a, b) => a.time - b.time);
+    async function loadRepoList(projectId: string, repos: string[] | undefined, ownerId: string | null) {
+        const repoListElement = document.getElementById("repo-list");
+        repoListElement.innerHTML = "";
 
-        if (emotionData.length === 0) {
-            return `linear-gradient(to right, ${noDataColor}, ${noDataColor})`;
+        if (!repos || repos.length === 0) {
+            repoListElement.innerHTML = "<p>No repositories linked to this project.</p>";
+            return;
         }
 
-        const stops: { time: number; color: string }[] = [];
-        const maxTimeGapPercent = 15;
-        const epsilon = 0.001;
+        if (!currentUserDetails) {
+            try {
+                currentUserDetails = await chorusAPI.getUserDetails();
+            } catch (error) {
+                console.error("Error fetching user details for repo list:", error);
+            }
+        }
+        const isOwner = currentUserDetails && currentUserDetails.user_id === ownerId;
 
-        if (emotionData[0].time > 0) {
-            if (emotionData[0].time > maxTimeGapPercent) {
-                stops.push({ time: 0, color: noDataColor });
-                stops.push({
-                    time: Math.max(0, emotionData[0].time - epsilon),
-                    color: noDataColor,
+        repos.forEach(repoUrl => {
+            const repoContainer = document.createElement("div");
+            repoContainer.className = "repo-item";
+
+            const repoUrlElement = document.createElement("span");
+            repoUrlElement.textContent = repoUrl;
+            repoUrlElement.className = "repo-url";
+            repoContainer.appendChild(repoUrlElement);
+
+            if (isOwner) {
+                const removeButton = document.createElement("button");
+                removeButton.textContent = "Remove";
+                removeButton.className = "remove-repo-button danger-button";
+                removeButton.addEventListener("click", () => {
+                    removeRepoHandler(projectId, repoUrl);
                 });
-            } else {
-                stops.push({
-                    time: 0,
-                    color: getColor(emotionData[0].emotion),
-                });
-            }
-        } else {
-            stops.push({
-                time: 0,
-                color: getColor(emotionData[0].emotion),
-            });
-        }
-
-        for (let i = 0; i < emotionData.length; i++) {
-            const currentPoint = emotionData[i];
-            const currentColor = getColor(currentPoint.emotion);
-
-            const lastStopTime =
-                stops.length > 0 ? stops[stops.length - 1].time : -1;
-            if (currentPoint.time > lastStopTime) {
-                stops.push({
-                    time: currentPoint.time,
-                    color: currentColor,
-                });
-            } else if (
-                currentPoint.time === lastStopTime &&
-                stops[stops.length - 1].color !== currentColor
-            ) {
-                stops[stops.length - 1].color = currentColor;
+                repoContainer.appendChild(removeButton);
             }
 
-            if (i + 1 < emotionData.length) {
-                const nextPoint = emotionData[i + 1];
-                const timeGap = nextPoint.time - currentPoint.time;
-
-                if (timeGap > maxTimeGapPercent) {
-                    const gapStartTime = Math.min(
-                        100,
-                        currentPoint.time + epsilon,
-                    );
-                    const gapEndTime = Math.max(
-                        gapStartTime,
-                        nextPoint.time - epsilon,
-                    );
-
-                    if (gapStartTime > currentPoint.time) {
-                        stops.push({
-                            time: gapStartTime,
-                            color: currentColor,
-                        });
-                    }
-                    stops.push({ time: gapStartTime, color: noDataColor });
-                    stops.push({ time: gapEndTime, color: noDataColor });
-                }
-            }
-        }
-
-        const lastPoint = emotionData[emotionData.length - 1];
-        if (lastPoint.time < 100) {
-            if (100 - lastPoint.time > maxTimeGapPercent) {
-                const gapStartTime = Math.min(100, lastPoint.time + epsilon);
-                if (gapStartTime > lastPoint.time) {
-                    stops.push({
-                        time: gapStartTime,
-                        color: getColor(lastPoint.emotion),
-                    });
-                }
-                stops.push({ time: gapStartTime, color: noDataColor });
-                stops.push({ time: 100, color: noDataColor });
-            } else {
-                stops.push({
-                    time: 100,
-                    color: getColor(lastPoint.emotion),
-                });
-            }
-        }
-
-        const finalStopStrings = [];
-        stops.sort((a, b) => a.time - b.time);
-
-        for (let i = 0; i < stops.length; i++) {
-            const current = stops[i];
-            const timePercent = Math.max(
-                0,
-                Math.min(100, current.time),
-            ).toFixed(4);
-            const stopStr = `${current.color} ${timePercent}%`;
-
-            if (finalStopStrings.length > 0) {
-                const prevStopStr =
-                    finalStopStrings[finalStopStrings.length - 1];
-                const [, prevTimePercentStr] = prevStopStr.split(" ");
-
-                if (`${timePercent}%` === prevTimePercentStr) {
-                    finalStopStrings[finalStopStrings.length - 1] = stopStr;
-                    continue;
-                }
-                if (stopStr === prevStopStr) {
-                    continue;
-                }
-            }
-            finalStopStrings.push(stopStr);
-        }
-
-        if (
-            finalStopStrings.length === 0 ||
-            !finalStopStrings[0].endsWith(" 0.0000%")
-        ) {
-            let firstColor = noDataColor;
-            if (finalStopStrings.length > 0) {
-                const [color, timeStr] = finalStopStrings[0].split(" ");
-                if (parseFloat(timeStr) === 0) {
-                    firstColor = color;
-                }
-            }
-            finalStopStrings.unshift(`${firstColor} 0.0000%`);
-        }
-        if (
-            finalStopStrings.length === 0 ||
-            !finalStopStrings[finalStopStrings.length - 1].endsWith(
-                " 100.0000%",
-            )
-        ) {
-            let lastColor = noDataColor;
-            if (finalStopStrings.length > 0) {
-                const [color, timeStr] =
-                    finalStopStrings[finalStopStrings.length - 1].split(" ");
-                if (parseFloat(timeStr) === 100) {
-                    lastColor = color;
-                } else {
-                    lastColor = color;
-                }
-            }
-            const [, lastTimeStr] =
-                finalStopStrings[finalStopStrings.length - 1].split(" ");
-            if (parseFloat(lastTimeStr) < 100) {
-                finalStopStrings.push(`${lastColor} 100.0000%`);
-            }
-        }
-
-        const uniqueFinalStops = finalStopStrings.filter((stop, index, arr) => {
-            if (index === 0) return true;
-            return stop !== arr[index - 1];
+            repoListElement.appendChild(repoContainer);
         });
-
-        if (uniqueFinalStops.length < 2) {
-            return `linear-gradient(to right, ${noDataColor}, ${noDataColor})`;
-        }
-
-        const gradientString = `linear-gradient(to right, ${uniqueFinalStops.join(
-            ", ",
-        )})`;
-        return gradientString;
     }
 
-    async function loadTimeDependentData(
-        projectId: string,
-        timeRangeStart: number,
-        timeRangeEnd: number,
-    ) {
-        const groupEmotionBarElement = document.querySelector(
-            "#group-emotionbar-container .emotion-gradient-bar",
-        ) as HTMLElement;
+    async function addRepoHandler(projectId: string) {
+        const repoUrlInput = document.getElementById("new-repo-url") as HTMLInputElement;
+        const messageElement = document.getElementById("add-repo-message");
+        const repoUrl = repoUrlInput.value.trim();
 
-        if (groupEmotionBarElement) {
-            groupEmotionBarElement.style.backgroundImage = `linear-gradient(to right, ${noDataColor}, ${noDataColor})`;
-            groupEmotionBarElement.removeAttribute("data-min-ts");
-            groupEmotionBarElement.removeAttribute("data-duration");
+        if (!repoUrl) {
+            messageElement.textContent = "Please enter a repository URL.";
+            messageElement.className = "message error";
+            return;
         }
 
         try {
-            const result = await chorusAPI.getProjectAverageEmotions(
-                projectId,
-                timeRangeStart,
-                timeRangeEnd,
-            );
+            new URL(repoUrl);
+        } catch (_) {
+            messageElement.textContent = "Please enter a valid URL.";
+            messageElement.className = "message error";
+            return;
+        }
 
-            const emotionData: { time: number; emotion: string }[] = [];
-            let dataDuration = 0;
-            let minDataTimestamp = Infinity;
-            let maxDataTimestamp = -Infinity;
+        messageElement.textContent = "Adding repository...";
+        messageElement.className = "message info";
 
-            if (result && result.length > 0) {
-                const validTimestamps: number[] = [];
-                result.forEach((average) => {
-                    const ts = Date.parse(average.interval) / 1000;
-                    if (!isNaN(ts)) {
-                        validTimestamps.push(ts);
-                        minDataTimestamp = Math.min(minDataTimestamp, ts);
-                        maxDataTimestamp = Math.max(maxDataTimestamp, ts);
-                    }
-                });
+        try {
+            await chorusAPI.addRepoToProject(projectId, repoUrl);
 
-                if (validTimestamps.length > 0) {
-                    dataDuration = maxDataTimestamp - minDataTimestamp;
+            messageElement.textContent = `Successfully added repository.`;
+            messageElement.className = "message success";
+            repoUrlInput.value = "";
 
-                    if (groupEmotionBarElement) {
-                        groupEmotionBarElement.setAttribute(
-                            "data-min-ts",
-                            minDataTimestamp.toString(),
-                        );
-                        groupEmotionBarElement.setAttribute(
-                            "data-duration",
-                            dataDuration.toString(),
-                        );
-                    }
+            const project = await chorusAPI.getProjectDetails(projectId);
+            await loadRepoList(projectId, project.repos, currentOwnerId);
 
-                    const validResults = result.filter(
-                        (avg) => !isNaN(Date.parse(avg.interval)),
-                    );
-                    validResults.forEach((average, index) => {
-                        let dominantEmotion = "nodata";
-                        let maxScore = -1;
-                        let allZero = true;
-
-                        if (average.average_emotions) {
-                            const emotionEntries = Object.entries(
-                                average.average_emotions,
-                            );
-                            if (emotionEntries.length > 0) {
-                                allZero = emotionEntries.every(
-                                    ([key, score]) => Number(score) <= 0.0001,
-                                );
-                            } else {
-                                allZero = true;
-                            }
-
-                            if (!allZero) {
-                                dominantEmotion = "neutral";
-                                for (const [emotion, score] of emotionEntries) {
-                                    const lowerEmotion = emotion.toLowerCase();
-                                    if (
-                                        Number(score) > maxScore &&
-                                        emotionColorMap[lowerEmotion] &&
-                                        lowerEmotion !== "nodata"
-                                    ) {
-                                        maxScore = Number(score);
-                                        dominantEmotion = lowerEmotion;
-                                    }
-                                }
-                            }
-                        }
-
-                        const intervalTimestamp =
-                            Date.parse(average.interval) / 1000;
-                        let timePercentage = 0;
-                        if (dataDuration > 0) {
-                            const relativeTime =
-                                intervalTimestamp - minDataTimestamp;
-                            timePercentage = Math.max(
-                                0,
-                                Math.min(
-                                    100,
-                                    (relativeTime / dataDuration) * 100,
-                                ),
-                            );
-                        } else if (validTimestamps.length === 1) {
-                            timePercentage = 50;
-                        } else if (validTimestamps.length > 1) {
-                            timePercentage = Math.max(
-                                0,
-                                Math.min(
-                                    100,
-                                    (index / (validTimestamps.length - 1)) *
-                                        100,
-                                ),
-                            );
-                        }
-                        emotionData.push({
-                            time: timePercentage,
-                            emotion: dominantEmotion,
-                        });
-                    });
+            setTimeout(() => {
+                if (messageElement.textContent === `Successfully added repository.`) {
+                    messageElement.textContent = "";
+                    messageElement.className = "message";
                 }
-            }
-
-            const gradientStyle = createEmotionGradient(
-                emotionData,
-                dataDuration,
-            );
-            if (groupEmotionBarElement) {
-                if (
-                    typeof gradientStyle === "string" &&
-                    gradientStyle.length > 0 &&
-                    gradientStyle.includes(",")
-                ) {
-                    groupEmotionBarElement.style.backgroundImage =
-                        gradientStyle;
-                    groupEmotionBarElement.style.display = "block";
-                } else {
-                    groupEmotionBarElement.style.backgroundImage = `linear-gradient(to right, ${noDataColor}, ${noDataColor})`;
-                    groupEmotionBarElement.style.display = "block";
+            }, 3000);
+        } catch (error: any) {
+            console.error("Error adding repository:", error);
+            let detail = error.message || "Unknown error";
+            try {
+                const match = error.message.match(/details: (.*)/);
+                if (match && match[1]) {
+                    const errorDetails = JSON.parse(match[1]);
+                    if (errorDetails.detail) {
+                        detail = errorDetails.detail;
+                    }
                 }
-            }
-        } catch (error) {
-            console.error("Error loading group average emotions:", error);
-            if (groupEmotionBarElement) {
-                groupEmotionBarElement.style.backgroundImage = `linear-gradient(to right, ${noDataColor}, ${noDataColor})`;
-                groupEmotionBarElement.style.display = "block";
-            }
+            } catch (parseError) { }
+            messageElement.textContent = `Failed to add repository: ${detail}`;
+            messageElement.className = "message error";
+            setTimeout(() => {
+                if (messageElement.textContent === `Failed to add repository: ${detail}`) {
+                    messageElement.textContent = "";
+                    messageElement.className = "message";
+                }
+            }, 5000);
+        }
+    }
+
+    async function removeRepoHandler(projectId: string, repoUrl: string) {
+        const messageElement = document.getElementById("add-repo-message");
+
+        if (!window.confirm(`Are you sure you want to remove the repository ${repoUrl}?`)) {
+            return;
+        }
+
+        messageElement.textContent = `Removing repository ${repoUrl}...`;
+        messageElement.className = "message info";
+
+        try {
+            await chorusAPI.removeRepoFromProject(projectId, repoUrl);
+
+            messageElement.textContent = `Successfully removed repository.`;
+            messageElement.className = "message success";
+
+            const project = await chorusAPI.getProjectDetails(projectId);
+            await loadRepoList(projectId, project.repos, currentOwnerId);
+
+            setTimeout(() => {
+                if (messageElement.textContent === `Successfully removed repository.`) {
+                    messageElement.textContent = "";
+                    messageElement.className = "message";
+                }
+            }, 3000);
+        } catch (error: any) {
+            console.error(`Error removing repository ${repoUrl}:`, error);
+            let detail = error.message || "Unknown error";
+            try {
+                const match = error.message.match(/details: (.*)/);
+                if (match && match[1]) {
+                    const errorDetails = JSON.parse(match[1]);
+                    if (errorDetails.detail) {
+                        detail = errorDetails.detail;
+                    }
+                }
+            } catch (parseError) { }
+            messageElement.textContent = `Failed to remove repository: ${detail}`;
+            messageElement.className = "message error";
+            setTimeout(() => {
+                if (messageElement.textContent === `Failed to remove repository: ${detail}`) {
+                    messageElement.textContent = "";
+                    messageElement.className = "message";
+                }
+            }, 5000);
         }
     }
 
@@ -434,36 +274,20 @@ import "../styles/style.css";
         const memberListElement = document.getElementById("member-list");
         memberListElement.innerHTML = "Loading members...";
 
-        let me: {
-            user_id: string;
-            username: string;
-            email: string | null;
-            disabled: boolean;
-            api_keys: Array<string>;
-        } | null = null;
+        if (!currentUserDetails) {
+            try {
+                currentUserDetails = await chorusAPI.getUserDetails();
+            } catch (error) {
+                console.error("Error fetching user details for member list:", error);
+            }
+        }
+        const me = currentUserDetails;
+        const isOwner = me && me.user_id === ownerId;
 
-        chorusAPI.getUserDetails().then(
-            (userDetails) => {
-                me = userDetails;
-                if (userDetails && userDetails.user_id) {
-                    const currentUserId = userDetails.user_id;
-                    if (currentUserId === ownerId) {
-                        const addMemberSection =
-                            document.getElementById("add-member-section");
-                        if (addMemberSection)
-                            addMemberSection.style.display = "block";
-                    } else {
-                        const addMemberSection =
-                            document.getElementById("add-member-section");
-                        if (addMemberSection)
-                            addMemberSection.style.display = "none";
-                    }
-                }
-            },
-            (error) => {
-                console.error("Error fetching user details:", error);
-            },
-        );
+        const addMemberSection = document.getElementById("add-member-section");
+        if (addMemberSection) {
+            addMemberSection.style.display = isOwner ? "flex" : "none";
+        }
 
         try {
             const project = await chorusAPI.getProjectDetails(projectId);
@@ -512,23 +336,21 @@ import "../styles/style.css";
                 }
                 memberHeader.appendChild(usernameHeader);
 
-                if (ownerId && user.user_id !== ownerId) {
-                    if (me && me.user_id === ownerId) {
-                        const removeButton = document.createElement("button");
-                        removeButton.textContent = "Remove";
-                        removeButton.className =
-                            "remove-member-button danger-button";
-                        removeButton.dataset.userId = user.user_id;
-                        removeButton.dataset.username = user.username;
-                        removeButton.addEventListener("click", () => {
-                            removeMemberHandler(
-                                projectId,
-                                user.user_id,
-                                user.username,
-                            );
-                        });
-                        memberHeader.appendChild(removeButton);
-                    }
+                if (isOwner && user.user_id !== ownerId) {
+                    const removeButton = document.createElement("button");
+                    removeButton.textContent = "Remove";
+                    removeButton.className =
+                        "remove-member-button danger-button";
+                    removeButton.dataset.userId = user.user_id;
+                    removeButton.dataset.username = user.username;
+                    removeButton.addEventListener("click", () => {
+                        removeMemberHandler(
+                            projectId,
+                            user.user_id,
+                            user.username,
+                        );
+                    });
+                    memberHeader.appendChild(removeButton);
                 }
 
                 memberContainer.appendChild(memberHeader);
@@ -565,78 +387,39 @@ import "../styles/style.css";
         }
     }
 
-    async function removeMemberHandler(
-        projectId: string,
-        userId: string,
-        username: string,
-    ) {
-        const messageElement = document.getElementById("add-member-message");
-
-        if (
-            !window.confirm(
-                `Are you sure you want to remove ${username} from this project?`,
-            )
-        ) {
-            return;
-        }
-
-        messageElement.textContent = `Removing ${username}...`;
-        messageElement.className = "message info";
-
-        try {
-            await chorusAPI.removeMemberFromProject(projectId, userId);
-
-            messageElement.textContent = `Successfully removed ${username}.`;
-            messageElement.className = "message success";
-
-            // Pass the currentOwnerId when reloading the list
-            await loadMemberList(projectId, currentOwnerId);
-
-            setTimeout(() => {
-                // Clear message only if it hasn't changed
-                if (
-                    messageElement.textContent ===
-                    `Successfully removed ${username}.`
-                ) {
-                    messageElement.textContent = "";
-                    messageElement.className = "message";
-                }
-            }, 3000);
-        } catch (error: any) {
-            console.error(`Error removing member ${username}:`, error);
-            messageElement.textContent = `Failed to remove ${username}: ${error.message || "Unknown error"}`;
-            messageElement.className = "message error";
-            // Clear message only if it hasn't changed
-            setTimeout(() => {
-                if (
-                    messageElement.textContent ===
-                    `Failed to remove ${username}: ${error.message || "Unknown error"}`
-                ) {
-                    messageElement.textContent = "";
-                    messageElement.className = "message";
-                }
-            }, 5000);
-        }
-    }
-
     async function loadStaticProjectData(projectId: string) {
         const projectNameElement = document.getElementById("project-name");
         const projectDescriptionElement = document.getElementById(
             "project-description",
         );
         const groupMoodTextElement = document.getElementById("group-mood-text");
+        const addRepoSection = document.getElementById("add-repo-section");
 
         projectNameElement.textContent = "Loading project...";
         projectDescriptionElement.textContent = "";
         if (groupMoodTextElement)
             groupMoodTextElement.textContent = "Loading...";
 
+        currentUserDetails = null;
+        try {
+            currentUserDetails = await chorusAPI.getUserDetails();
+        } catch (error) {
+            console.error("Error fetching current user details:", error);
+        }
+
         try {
             const project = await chorusAPI.getProjectDetails(projectId);
-            currentOwnerId = project.owner_id; // Assign to the outer scope variable
+            currentOwnerId = project.owner_id;
             projectNameElement.textContent = project.name;
             projectDescriptionElement.textContent =
                 project.description || "No description available.";
+
+            const isOwner = currentUserDetails && currentUserDetails.user_id === currentOwnerId;
+            if (addRepoSection) {
+                addRepoSection.style.display = isOwner ? "flex" : "none";
+            }
+
+            await loadRepoList(projectId, project.repos, currentOwnerId);
 
             try {
                 const groupReports = await chorusAPI.getGroupReports(
@@ -667,116 +450,21 @@ import "../styles/style.css";
                 }
             }
 
-            // Pass the fetched ownerId to loadMemberList
             await loadMemberList(projectId, currentOwnerId);
+
         } catch (error) {
             projectNameElement.textContent = "Error";
             projectDescriptionElement.textContent =
                 "Failed to load project details.";
-            const groupMoodTextElement =
-                document.getElementById("group-mood-text");
-            const groupEmotionBarElement = document.querySelector(
-                "#group-emotionbar-container .emotion-gradient-bar",
-            ) as HTMLElement;
-            if (groupMoodTextElement) {
-                groupMoodTextElement.textContent = "Error loading data.";
-                groupMoodTextElement.style.color = "red";
-            }
-            if (groupEmotionBarElement) {
-                groupEmotionBarElement.style.display = "none";
-            }
-        }
-    }
-
-    async function addUserToProjectHandler(projectId: string) {
-        const usernameInput = document.getElementById(
-            "new-member-username",
-        ) as HTMLInputElement;
-        const messageElement = document.getElementById("add-member-message");
-        const username = usernameInput.value.trim();
-
-        if (!username) {
-            messageElement.textContent = "Please enter a username.";
-            messageElement.className = "message error";
-            return;
-        }
-
-        messageElement.textContent = "Adding member...";
-        messageElement.className = "message info";
-
-        try {
-            const user = await chorusAPI.getUserDetailsByUsername(username);
-            if (!user || !user.user_id) {
-                throw new Error(`User '${username}' not found.`);
-            }
-            await chorusAPI.addMemberToProject(projectId, user.user_id);
-
-            messageElement.textContent = `Successfully added ${username}.`;
-            messageElement.className = "message success";
-            usernameInput.value = "";
-
-            // Pass the currentOwnerId when reloading the list
-            await loadMemberList(projectId, currentOwnerId);
-
-            setTimeout(() => {
-                // Clear message only if it hasn't changed
-                if (
-                    messageElement.textContent ===
-                    `Successfully added ${username}.`
-                ) {
-                    messageElement.textContent = "";
-                    messageElement.className = "message";
-                }
-            }, 3000);
-        } catch (error: any) {
-            console.error("Error adding member:", error);
-            messageElement.textContent = `Failed to add member: ${error.message || "Unknown error"}`;
-            messageElement.className = "message error";
-            // Clear message only if it hasn't changed
-            setTimeout(() => {
-                if (
-                    messageElement.textContent ===
-                    `Failed to add member: ${error.message || "Unknown error"}`
-                ) {
-                    messageElement.textContent = "";
-                    messageElement.className = "message";
-                }
-            }, 5000);
-        }
-    }
-
-    async function deleteProjectHandler(projectId: string) {
-        const messageElement = document.getElementById(
-            "delete-project-message",
-        );
-        const deleteButton = document.getElementById(
-            "delete-project-button",
-        ) as HTMLButtonElement;
-
-        messageElement.textContent = "Deleting project...";
-        messageElement.className = "message info";
-        deleteButton.disabled = true;
-
-        try {
-            await chorusAPI.deleteProject(projectId);
-
-            messageElement.textContent =
-                "Project successfully deleted. Redirecting...";
-            messageElement.className = "message success";
-
-            setTimeout(() => {
-                navigate("/dashboard");
-            }, 1000);
-        } catch (error: any) {
-            console.error("Error deleting project:", error);
-            messageElement.textContent = `Failed to delete project: ${error.message || "Unknown error"}`;
-            messageElement.className = "message error";
-            deleteButton.disabled = false;
+            if (addRepoSection) addRepoSection.style.display = "none";
+            const repoListElement = document.getElementById("repo-list");
+            if (repoListElement) repoListElement.innerHTML = "<div class='error-message'>Failed to load repositories.</div>";
         }
     }
 
     document.addEventListener("astro:page-load", () => {
-        currentOwnerId = null; // Reset ownerId on page load
+        currentOwnerId = null;
+        currentUserDetails = null;
         const urlParams = new URLSearchParams(window.location.search);
         const projectId = urlParams.get("project_id");
         const timeRangeFromUrl = urlParams.get("time_range");
@@ -807,6 +495,10 @@ import "../styles/style.css";
         const deleteProjectMessage = document.getElementById(
             "delete-project-message",
         );
+        const addRepoButton = document.getElementById("add-repo-button");
+        const addRepoInput = document.getElementById("new-repo-url") as HTMLInputElement;
+        const addRepoMessage = document.getElementById("add-repo-message");
+        const repoListElement = document.getElementById("repo-list");
 
         if (
             timeRangeFromUrl &&
@@ -890,6 +582,23 @@ import "../styles/style.css";
                                     if (event.key === "Enter") {
                                         event.preventDefault();
                                         addUserToProjectHandler(projectId);
+                                    }
+                                },
+                            );
+                        }
+
+                        if (addRepoButton) {
+                            addRepoButton.addEventListener("click", () => {
+                                addRepoHandler(projectId);
+                            });
+                        }
+                        if (addRepoInput) {
+                            addRepoInput.addEventListener(
+                                "keypress",
+                                (event) => {
+                                    if (event.key === "Enter") {
+                                        event.preventDefault();
+                                        addRepoHandler(projectId);
                                     }
                                 },
                             );
@@ -1010,6 +719,9 @@ import "../styles/style.css";
                             deleteProjectButton.style.display = "none";
                         if (deleteProjectMessage)
                             deleteProjectMessage.style.display = "none";
+                        if (repoListElement) repoListElement.innerHTML = "<div class='error-message'>Invalid project ID.</div>";
+                        const addRepoSection = document.getElementById("add-repo-section");
+                        if (addRepoSection) addRepoSection.style.display = "none";
                     }
                 }
             })
@@ -1026,6 +738,9 @@ import "../styles/style.css";
                     deleteProjectButton.style.display = "none";
                 if (deleteProjectMessage)
                     deleteProjectMessage.style.display = "none";
+                if (repoListElement) repoListElement.innerHTML = "<div class='error-message'>Could not verify login status.</div>";
+                const addRepoSection = document.getElementById("add-repo-section");
+                if (addRepoSection) addRepoSection.style.display = "none";
             });
     });
 </script>
@@ -1056,20 +771,26 @@ import "../styles/style.css";
         cursor: pointer;
         font-size: 14px;
         transition: background-color 0.2s ease;
+        /* This button also uses .danger-button class */
     }
 
     .danger-button {
-        background-color: #d9534f;
-        color: white;
+        background-color: #d9534f; /* Base danger color */
+        color: white; /* Base danger text color */
+        border: none; /* Ensure no border */
+        border-radius: 4px; /* Consistent radius */
+        cursor: pointer; /* Pointer cursor */
+        transition: background-color 0.2s ease; /* Smooth transition */
     }
 
     .danger-button:hover {
-        background-color: #c9302c;
+        background-color: #c9302c; /* Darker red on hover */
     }
 
     .danger-button:disabled {
         background-color: #cccccc;
         cursor: not-allowed;
+        color: #666; /* Dim text color when disabled */
     }
 
     #delete-project-message {
@@ -1217,11 +938,26 @@ import "../styles/style.css";
         color: #333;
     }
 
-    .remove-member-button {
-        padding: 4px 8px;
-        font-size: 12px;
-        margin-left: 10px;
-        color: var(--crimson-red);
+    /* Increase specificity for remove buttons */
+    .member-item .remove-member-button,
+    .repo-item .remove-repo-button {
+        padding: 4px 8px; /* Keep specific padding */
+        font-size: 12px; /* Keep specific font size */
+        margin-left: 10px; /* Keep specific margin */
+        flex-shrink: 0; /* Keep specific flex property */
+        /* Re-add explicit danger styles */
+        background-color: #d9534f;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+    }
+
+    /* Increase specificity for hover state */
+    .member-item .remove-member-button:hover,
+    .repo-item .remove-repo-button:hover {
+        background-color: #c9302c; /* Darker red on hover */
     }
 
     .report-summary {
@@ -1304,14 +1040,15 @@ import "../styles/style.css";
         user-select: none;
     }
 
-    #add-member-section {
+    #add-member-section, #add-repo-section {
         margin-bottom: 20px;
         display: flex;
         align-items: center;
         gap: 10px;
     }
 
-    #add-member-section input[type="text"] {
+    #add-member-section input[type="text"],
+    #add-repo-section input[type="text"] {
         padding: 8px 12px;
         border: 1px solid #ccc;
         border-radius: 4px;
@@ -1319,7 +1056,8 @@ import "../styles/style.css";
         flex-grow: 1;
     }
 
-    #add-member-section button {
+    #add-member-section button,
+    #add-repo-section button {
         padding: 8px 15px;
         background-color: var(--golden-treasure);
         color: var(--charcoal);
@@ -1328,10 +1066,48 @@ import "../styles/style.css";
         cursor: pointer;
         font-size: 14px;
         transition: background-color 0.2s ease;
+        white-space: nowrap;
     }
 
-    #add-member-section button:hover {
+    #add-member-section button:hover,
+    #add-repo-section button:hover {
         background-color: #e6b800;
+    }
+
+    #new-member-username {
+        max-width: 25%; min-width: 200px;
+    }
+    #new-repo-url {
+        max-width: 50%; min-width: 300px;
+    }
+
+    #repo-list {
+        padding-left: 0;
+        margin-top: 10px;
+        margin-bottom: 30px;
+    }
+
+    .repo-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+        padding: 10px 15px;
+        border: 1px solid #eee;
+        border-radius: 8px;
+        background-color: #f9f9f9;
+    }
+
+    .repo-url {
+        font-size: 14px;
+        color: #333;
+        word-break: break-all;
+        margin-right: 15px;
+    }
+
+    #repo-list .error-message {
+        color: red;
+        font-weight: bold;
     }
 
     .message {

@@ -38,38 +38,75 @@ import "../styles/style.css";
     import { chorusAPI } from "../lib/sdk.js";
     import { navigate } from "astro:transitions/client";
     
-    function refresh() {
-        chorusAPI
-        .getUserProjects()
-        .then((response) => {
+    async function refresh() { // Make function async
+        let currentUserId = null;
+        try {
+            const userDetails = await chorusAPI.getUserDetails();
+            currentUserId = userDetails.user_id;
+        } catch (error) {
+            console.error("Dashboard: Error fetching current user details:", error);
+            // Handle error, maybe show a message or proceed without owner sorting highlight
+        }
+
+        try {
+            const response = await chorusAPI.getUserProjects(); // Use await
             const projectList = document.getElementById("project-list");
             projectList.innerHTML = ""; // Clear existing content
-            
-            if (response.projects.length === 0) {
+
+            if (!response.projects || response.projects.length === 0) {
                 projectList.innerHTML = "<p>No projects found.</p>";
                 return;
             }
-            
-            response.projects.forEach((project) => {
-                // Get project owner name
-                chorusAPI
-                .getUserDetailsById(project.owner_id)
-                .then((ownerResponse) => {
-                    const ownerName = ownerResponse.username;
-                    const projectItem = document.createElement("div");
-                    projectItem.className = "project-item";
-                    projectItem.innerHTML = `
-                        <h2>${project.name}</h2>
-                        <p>Owner: ${ownerName}</p>
-                        <a href="/project?project_id=${project.project_id}" style="color:var(--moss-green)">Open Project</a>
-                    `;
-                    projectList.appendChild(projectItem);
-                })
+
+            // Sort projects: owned first, then alphabetically
+            response.projects.sort((a, b) => {
+                const aIsOwner = a.owner_id === currentUserId;
+                const bIsOwner = b.owner_id === currentUserId;
+
+                if (aIsOwner && !bIsOwner) {
+                    return -1; // a comes first
+                }
+                if (!aIsOwner && bIsOwner) {
+                    return 1; // b comes first
+                }
+                // If ownership is the same, sort alphabetically by name
+                return a.name.localeCompare(b.name);
             });
-        })
-        .catch((error) => {
-            console.error("Dashboard: Error fetching projects:", error);
-        });
+
+            // Use Promise.all to fetch all owner details concurrently after sorting
+            const ownerDetailPromises = response.projects.map(project =>
+                chorusAPI.getUserDetailsById(project.owner_id).catch(err => {
+                    console.error(`Failed to fetch owner details for project ${project.name}:`, err);
+                    return { username: 'Unknown' }; // Fallback owner name
+                })
+            );
+
+            const ownerDetails = await Promise.all(ownerDetailPromises);
+
+            // Render sorted projects
+            response.projects.forEach((project, index) => {
+                const ownerName = ownerDetails[index].username;
+                const projectItem = document.createElement("div");
+                projectItem.className = "project-item";
+                // Optionally add a class if the current user is the owner
+                if (project.owner_id === currentUserId) {
+                    projectItem.classList.add("owned-project");
+                }
+                projectItem.innerHTML = `
+                    <h2>${project.name}</h2>
+                    <p>owner: ${ownerName}</p>
+                    <a href="/project?project_id=${project.project_id}" class="open-project-button">open project</a>
+                `;
+                projectList.appendChild(projectItem);
+            });
+
+        } catch (error) {
+            console.error("Dashboard: Error fetching or processing projects:", error);
+            const projectList = document.getElementById("project-list");
+            if (projectList) { // Check if element exists before setting innerHTML
+                 projectList.innerHTML = "<p>Error loading projects. Please try again later.</p>";
+            }
+        }
     }
     
     document.addEventListener("astro:page-load", () => {
@@ -84,7 +121,7 @@ import "../styles/style.css";
             console.error("Dashboard: Error checking login status:", error);
         });
         
-        refresh();
+        refresh(); // Call the async function
         
         document.getElementById("create-project-form")?.addEventListener("submit", (event) => {
             event.preventDefault();
@@ -110,8 +147,10 @@ import "../styles/style.css";
     
     #project-list {
         display: flex;
-        flex-direction: column;
-        align-items: center;
+        flex-wrap: wrap;
+        gap: 20px;
+        justify-content: center;
+        align-self: center;
         margin: 2rem;
     }
     
@@ -121,12 +160,17 @@ import "../styles/style.css";
         justify-content: center;
         align-items: center;
         background-color: var(--misty-aqua);
-        padding: 15px; /* Add padding */
-        border-radius: 8px; /* Add rounded corners */
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Optional: Add a subtle shadow */
-        width: 100%; /* Full width */
-        max-width: 300px; /* Optional: Limit width */
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        width: 100%;
+        max-width: 300px;
         margin: 10px;
+        border: 2px solid transparent;
+    }
+
+    .owned-project {
+        border-color: var(--golden-treasure); /* Highlight owned projects */
     }
     
     /* Optional: Style the link inside the project item */
@@ -134,11 +178,70 @@ import "../styles/style.css";
         display: inline-block; /* Allows margin/padding */
         margin-top: 10px;
         text-decoration: none;
-        color: var(--deep-teal); /* Use a theme color */
         font-weight: bold;
     }
     
     .project-item a:hover {
         text-decoration: underline;
+    }
+
+    .open-project-button {
+        display: inline-flex; /* Use flexbox for alignment */
+        align-items: center; /* Vertically center content */
+        justify-content: center; /* Horizontally center content */
+        gap: 0.5rem; /* Add space between text and icon */
+        text-decoration: none; /* Remove underline from links */
+        background-color: var(--pirate-teal);
+        color: var(--parchment);
+        border: none;
+        padding: 0.75rem 1.5rem;
+        font-size: 1rem;
+        font-weight: 100;
+        border-radius: 0.5rem;
+        cursor: pointer;
+        transition:
+            transform 0.2s ease,
+            box-shadow 0.3s ease;
+        box-shadow: var(--shadow);
+        position: relative;
+        overflow: hidden;
+        z-index: 0;
+        -webkit-user-select: none; /* Safari */
+        -moz-user-select: none; /* Firefox */
+        -ms-user-select: none; /* IE10+/Edge */
+        user-select: none; /* Standard */
+    }
+
+    .open-project-button::before {
+        content: "";
+        position: absolute;
+        background: var(--golden-treasure);
+        width: 100%;
+        height: 0%;
+        top: 0;
+        left: 0;
+        z-index: -1;
+        transition: height 0.2s ease;
+    }
+
+    .open-project-button:hover::before {
+        height: 100%;
+    }
+
+    .open-project-button:hover {
+        color: var(--charcoal);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+    }
+
+    .open-project-button:active {
+        transform: scale(0.98);
+    }
+
+    .open-project-button * {
+        -webkit-user-select: none; /* Safari */        
+        -moz-user-select: none; /* Firefox */
+        -ms-user-select: none; /* IE10+/Edge */
+        user-select: none; /* Standard */
     }
 </style>
