@@ -1,0 +1,163 @@
+---
+// components/UserDropdown.astro
+// Complete dropdown component with type safety and accessibility
+import { Image } from "astro:assets";
+import User from "../assets/user.svg";
+---
+
+<div class="dropdown-container">
+    <button
+        class="user-icon"
+        id="dropdownButton"
+        aria-label="User menu"
+        aria-haspopup="true"
+        aria-expanded="false"
+    >
+        <Image src={User} alt="User" width={32} height={32} />
+    </button>
+
+    <div class="dropdown-menu" id="dropdownMenu" role="menu">
+        <button class="dropdown-item logout-button" role="menuitem"
+            >Log Out</button
+        >
+    </div>
+</div>
+
+<style>
+    .dropdown-container {
+        position: relative;
+        display: inline-block;
+    }
+
+    .user-icon {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 8px;
+        border-radius: 50%;
+        transition: background-color 0.2s;
+    }
+
+    .user-icon:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .dropdown-menu {
+        position: absolute;
+        right: 0;
+        top: 100%;
+        background: white;
+        border-radius: 4px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        margin-top: 8px;
+        min-width: 150px;
+        opacity: 0;
+        visibility: hidden;
+        transition:
+            opacity 0.2s,
+            visibility 0.2s;
+        z-index: 999;
+    }
+
+    .dropdown-menu.active {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .dropdown-item {
+        display: block;
+        padding: 12px 16px;
+        color: #333;
+        text-decoration: none;
+        transition: background-color 0.2s;
+    }
+
+    .dropdown-item:hover {
+        background-color: #f5f5f5;
+    }
+
+    .logout-button {
+        width: 100%;
+        text-align: left;
+        background: none;
+        border: none;
+        font: inherit;
+        cursor: pointer;
+
+    @media (prefers-color-scheme: dark) {
+        .dropdown-menu {
+            background: #1a1a1a;
+        }
+
+        .dropdown-item {
+            color: white;
+        }
+
+        .dropdown-item:hover {
+            background-color: #333;
+        }
+    }
+</style>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        // Type-safe element selection
+        const dropdownButton = document.getElementById(
+            "dropdownButton",
+        ) as HTMLButtonElement | null;
+        const dropdownMenu = document.getElementById(
+            "dropdownMenu",
+        ) as HTMLElement | null;
+
+        if (!dropdownButton || !dropdownMenu) {
+            console.warn("Dropdown elements not found");
+            return;
+        }
+
+        // Toggle dropdown
+        dropdownButton.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const isActive = dropdownMenu.classList.toggle("active");
+            dropdownButton.setAttribute("aria-expanded", isActive.toString());
+        });
+
+        // Close on outside click
+        document.addEventListener("click", (e) => {
+            if (!e.target.closest(".dropdown-container")) {
+                dropdownMenu.classList.remove("active");
+                dropdownButton.setAttribute("aria-expanded", "false");
+            }
+        });
+
+        // Add logout handler
+        const logoutButton = document.querySelector(
+            ".logout-button",
+          ) as HTMLButtonElement | null;
+
+        if (logoutButton) {
+            logoutButton.addEventListener("click", (e) => {
+                try {
+                    // Clear specific localStorage items
+                    console.log("trying");
+                    localStorage.removeItem('token');
+                    window.location.href = '/login';
+
+                    // Redirect to login page
+                } catch (error) {
+                    console.error("Logout failed:", error);
+                    // Handle error (show message to user)
+                }
+            });
+        } else {
+            console.warn("Logout button not found");
+        }
+
+    // Close on Escape
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+            dropdownMenu.classList.remove("active");
+            dropdownButton.setAttribute("aria-expanded", "false");
+        }
+    });
+});
+</script>
