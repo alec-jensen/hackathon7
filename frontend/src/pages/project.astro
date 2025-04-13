@@ -63,82 +63,123 @@ import Layout from "../layouts/Layout.astro";
 
     // --- Emotion Bar Logic ---
 
-    function createEmotionGradient(emotionData: { time: number; emotion: string }[]) {
+    function createEmotionGradient(emotionData: { time: number; emotion: string }[], dataDuration: number) {
         emotionData.sort((a, b) => a.time - b.time);
 
         if (emotionData.length === 0) {
-            // No data, fill with noDataColor
             return `linear-gradient(to right, ${noDataColor}, ${noDataColor})`;
         }
 
         const stops: { time: number; color: string }[] = [];
+        const maxTimeGapPercent = 15; // Threshold for showing 'no data' gap
+        const epsilon = 0.001; // Small offset for sharp transitions
 
-        // Add start point if data doesn't start at 0%
+        // Handle gap at the start
         if (emotionData[0].time > 0) {
-            stops.push({ time: 0, color: noDataColor });
+            if (emotionData[0].time > maxTimeGapPercent) {
+                stops.push({ time: 0, color: noDataColor });
+                stops.push({ time: Math.max(0, emotionData[0].time - epsilon), color: noDataColor });
+            } else {
+                stops.push({ time: 0, color: getColor(emotionData[0].emotion) });
+            }
         } else {
-            // Data starts at 0%, use its color
             stops.push({ time: 0, color: getColor(emotionData[0].emotion) });
         }
 
-        // Add stops for each data point
-        emotionData.forEach(point => {
-            stops.push({ time: point.time, color: getColor(point.emotion) });
-        });
+        // Iterate through points to add stops and handle gaps
+        for (let i = 0; i < emotionData.length; i++) {
+            const currentPoint = emotionData[i];
+            const currentColor = getColor(currentPoint.emotion);
 
-        // Add end point if data doesn't end at 100%
+            const lastStopTime = stops.length > 0 ? stops[stops.length - 1].time : -1;
+            if (currentPoint.time > lastStopTime) {
+                stops.push({ time: currentPoint.time, color: currentColor });
+            } else if (currentPoint.time === lastStopTime && stops[stops.length - 1].color !== currentColor) {
+                stops[stops.length - 1].color = currentColor;
+            }
+
+            if (i + 1 < emotionData.length) {
+                const nextPoint = emotionData[i + 1];
+                const timeGap = nextPoint.time - currentPoint.time;
+
+                if (timeGap > maxTimeGapPercent) {
+                    const gapStartTime = Math.min(100, currentPoint.time + epsilon);
+                    const gapEndTime = Math.max(gapStartTime, nextPoint.time - epsilon);
+
+                    if (gapStartTime > currentPoint.time) {
+                        stops.push({ time: gapStartTime, color: currentColor });
+                    }
+                    stops.push({ time: gapStartTime, color: noDataColor });
+                    stops.push({ time: gapEndTime, color: noDataColor });
+                }
+            }
+        }
+
+        // Handle gap at the end
         const lastPoint = emotionData[emotionData.length - 1];
         if (lastPoint.time < 100) {
-            stops.push({ time: 100, color: noDataColor });
-        } else {
-            // Ensure the last point's color extends to 100% if it's already at 100
-            if (stops[stops.length - 1].time < 100) {
+            if (100 - lastPoint.time > maxTimeGapPercent) {
+                const gapStartTime = Math.min(100, lastPoint.time + epsilon);
+                if (gapStartTime > lastPoint.time) {
+                    stops.push({ time: gapStartTime, color: getColor(lastPoint.emotion) });
+                }
+                stops.push({ time: gapStartTime, color: noDataColor });
+                stops.push({ time: 100, color: noDataColor });
+            } else {
                 stops.push({ time: 100, color: getColor(lastPoint.emotion) });
             }
         }
 
-        // --- Filtering and Formatting ---
+        // --- Simplified Filtering and Formatting ---
         const finalStopStrings = [];
-        // Sort stops by time just in case
         stops.sort((a, b) => a.time - b.time);
 
         for (let i = 0; i < stops.length; i++) {
             const current = stops[i];
-            // Clamp time between 0 and 100, format
             const timePercent = Math.max(0, Math.min(100, current.time)).toFixed(4);
             const stopStr = `${current.color} ${timePercent}%`;
 
-            // Basic filtering: remove consecutive identical stops
-            if (i > 0 && stopStr === finalStopStrings[finalStopStrings.length - 1]) {
-                continue;
-            }
-            // More advanced filtering: if times are identical, keep only the last color specified
-            if (i > 0) {
+            if (finalStopStrings.length > 0) {
                 const prevStopStr = finalStopStrings[finalStopStrings.length - 1];
                 const [, prevTimePercentStr] = prevStopStr.split(" ");
+
                 if (`${timePercent}%` === prevTimePercentStr) {
-                    finalStopStrings[finalStopStrings.length - 1] = stopStr; // Overwrite
+                    finalStopStrings[finalStopStrings.length - 1] = stopStr;
+                    continue;
+                }
+                if (stopStr === prevStopStr) {
                     continue;
                 }
             }
-
             finalStopStrings.push(stopStr);
         }
 
-        // Ensure 0% and 100% stops exist after filtering
         if (finalStopStrings.length === 0 || !finalStopStrings[0].endsWith(" 0.0000%")) {
-            const firstColor = finalStopStrings.length > 0 ? finalStopStrings[0].split(" ")[0] : noDataColor;
+            let firstColor = noDataColor;
+            if (finalStopStrings.length > 0) {
+                const [color, timeStr] = finalStopStrings[0].split(" ");
+                if (parseFloat(timeStr) === 0) {
+                    firstColor = color;
+                }
+            }
             finalStopStrings.unshift(`${firstColor} 0.0000%`);
         }
         if (finalStopStrings.length === 0 || !finalStopStrings[finalStopStrings.length - 1].endsWith(" 100.0000%")) {
-            const lastStopStr = finalStopStrings.length > 0 ? finalStopStrings[finalStopStrings.length - 1] : `${noDataColor} 0.0000%`;
-            const [lastColor, lastTimeStr] = lastStopStr.split(" ");
+            let lastColor = noDataColor;
+            if (finalStopStrings.length > 0) {
+                const [color, timeStr] = finalStopStrings[finalStopStrings.length - 1].split(" ");
+                if (parseFloat(timeStr) === 100) {
+                    lastColor = color;
+                } else {
+                    lastColor = color;
+                }
+            }
+            const [, lastTimeStr] = finalStopStrings[finalStopStrings.length - 1].split(" ");
             if (parseFloat(lastTimeStr) < 100) {
                 finalStopStrings.push(`${lastColor} 100.0000%`);
             }
         }
 
-        // Remove final duplicates after ensuring 0/100
         const uniqueFinalStops = finalStopStrings.filter((stop, index, arr) => {
             if (index === 0) return true;
             return stop !== arr[index - 1];
@@ -211,6 +252,7 @@ import Layout from "../layouts/Layout.astro";
             );
 
             const emotionData: { time: number; emotion: string }[] = [];
+            let dataDuration = 0; // Initialize dataDuration
 
             console.log("Raw API Result:", result);
 
@@ -233,7 +275,7 @@ import Layout from "../layouts/Layout.astro";
                 if (validTimestamps.length === 0) {
                     console.warn("No valid timestamps found in API result. Cannot calculate percentages.");
                 } else {
-                    const dataDuration = maxDataTimestamp - minDataTimestamp;
+                    dataDuration = maxDataTimestamp - minDataTimestamp; // Assign calculated duration
                     console.log(`Data Timestamp Range: ${new Date(minDataTimestamp * 1000).toISOString()} to ${new Date(maxDataTimestamp * 1000).toISOString()}`);
                     console.log(`Actual Data Duration (seconds): ${dataDuration}`);
 
@@ -242,20 +284,36 @@ import Layout from "../layouts/Layout.astro";
                     validResults.forEach((average, index) => {
                         let dominantEmotion = 'nodata'; // Default to 'nodata'
                         let maxScore = -1;
+                        let allZero = true; // Flag to check if all scores are zero
 
                         // Check if average_emotions exists and is not null
                         if (average.average_emotions) {
-                            dominantEmotion = 'neutral'; // Reset to neutral if data exists but no score is high enough
-                            // Find the emotion with the highest score
-                            for (const [emotion, score] of Object.entries(average.average_emotions)) {
-                                const lowerEmotion = emotion.toLowerCase();
-                                // Check if score is higher AND the emotion is recognized (in map, excluding 'nodata')
-                                if (Number(score) > maxScore && emotionColorMap[lowerEmotion] && lowerEmotion !== 'nodata') {
-                                    maxScore = Number(score);
-                                    dominantEmotion = lowerEmotion; // Store lowercase key
-                                }
+                            const emotionEntries = Object.entries(average.average_emotions);
+
+                            // Check if all scores are effectively zero
+                            if (emotionEntries.length > 0) {
+                                allZero = emotionEntries.every(([key, score]) => Number(score) <= 0.0001); // Use a small threshold for floating point comparison
+                            } else {
+                                // If average_emotions is an empty object, treat as nodata
+                                allZero = true;
                             }
-                             // If maxScore remained -1 (or very low), it defaults to 'neutral' from the reset above.
+
+                            if (!allZero) {
+                                dominantEmotion = 'neutral'; // Reset to neutral only if scores are not all zero
+                                // Find the emotion with the highest score
+                                for (const [emotion, score] of emotionEntries) {
+                                    const lowerEmotion = emotion.toLowerCase();
+                                    // Check if score is higher AND the emotion is recognized (in map, excluding 'nodata')
+                                    if (Number(score) > maxScore && emotionColorMap[lowerEmotion] && lowerEmotion !== 'nodata') {
+                                        maxScore = Number(score);
+                                        dominantEmotion = lowerEmotion; // Store lowercase key
+                                    }
+                                }
+                                // If maxScore remained -1 (or very low), it defaults to 'neutral' from the reset above.
+                            } else {
+                                // All scores are zero, keep dominantEmotion as 'nodata'
+                                console.log(`[${index}] All emotion scores are zero for interval ${average.interval}, treating as 'nodata'.`);
+                            }
                         } else {
                             // average_emotions is null or missing, keep dominantEmotion as 'nodata'
                             console.warn(`[${index}] Average object missing or has null 'average_emotions' property:`, average);
@@ -287,7 +345,7 @@ import Layout from "../layouts/Layout.astro";
             }
 
             console.log("Processed Emotion Data for Gradient:", emotionData);
-            const gradientStyle = createEmotionGradient(emotionData);
+            const gradientStyle = createEmotionGradient(emotionData, dataDuration);
             if (groupEmotionBarElement) {
                 groupEmotionBarElement.style.backgroundImage = gradientStyle;
             } else {
