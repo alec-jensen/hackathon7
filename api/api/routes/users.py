@@ -59,6 +59,13 @@ async def get_public_user_info(user_id: str):
         raise HTTPException(status_code=404, detail="User not found")
     return PublicUserInfo(user_id=user_id, username=user_data["username"])
 
+@router.get("/users/username/{username}", response_model=PublicUserInfo)
+async def get_user_by_username(username: str):
+    user_data = await users_collection.find_one({"username": username})
+    if not user_data:
+        raise HTTPException(status_code=404, detail="User not found")
+    return PublicUserInfo(user_id=user_data["user_id"], username=user_data["username"])
+
 @router.get("/me", response_model=User)
 async def get_user_details(current_user: User = Depends(get_current_user)):
     return current_user
