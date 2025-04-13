@@ -38,10 +38,7 @@ import AniButton from "../components/Button.astro"
             .isLoggedIn()
             .then((isLoggedIn) => {
                 if (isLoggedIn) {
-                    setTimeout(() => {
-                        // Redirect to dashboard after 1 second
-                        window.location.href = "/dashboard";
-                    }, 1000);
+                    window.location.href = '/dashboard';
 
                     if (signupSuccess) {
                         signupSuccess.textContent = 'You are already logged in. Redirecting to dashboard...';
@@ -85,7 +82,7 @@ import AniButton from "../components/Button.astro"
                             console.log('Login successful:', loginData);
                             localStorage.setItem('token', loginData.access_token);
 
-                            window.location.href = '/dashboard';
+                            navigate('/dashboard'); // Redirect to dashboard after successful login
                         })
                         .catch(loginError => {
                             console.error('Login failed:', loginError);

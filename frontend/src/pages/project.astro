@@ -29,17 +29,30 @@ import { chorusAPI } from '../lib/sdk.js';
                     if (projectId) {
                         chorusAPI
                             .getProjectDetails(projectId)
-                            .then((project) => {
+                            .then(async (project) => { // Make the handler async
                                 const container = document.getElementById("project-container");
                                 container.innerHTML = `
                                     <h1>${project.name}</h1>
                                     <p>${project.description || "No description available."}</p>
                                     <h2>Members</h2>
-                                    <ul>
-                                        ${project.members.map(memberId => `<li>User ID: ${memberId}</li>`).join("")}
-                                        <!-- Note: Displaying usernames requires an API endpoint or SDK function to resolve user IDs -->
-                                    </ul>
+                                    <ul id="member-list">Loading members...</ul>
                                 `;
+
+                                // Fetch usernames for each member ID
+                                try {
+                                    const memberPromises = project.members.map(memberId =>
+                                        chorusAPI.getUserDetailsById(memberId)
+                                    );
+                                    const memberDetails = await Promise.all(memberPromises);
+                                    const memberList = document.getElementById("member-list");
+                                    memberList.innerHTML = memberDetails.map(user =>
+                                        `<li>${user.username}</li>`
+                                    ).join("");
+                                } catch (userError) {
+                                    console.error("Error loading member details:", userError);
+                                    const memberList = document.getElementById("member-list");
+                                    memberList.innerHTML = "<li>Error loading some member details.</li>";
+                                }
                             })
                             .catch((error) => {
                                 console.error("Error loading project details:", error);

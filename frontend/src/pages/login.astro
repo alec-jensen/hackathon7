@@ -38,10 +38,7 @@ import AniButton from "../components/Button.astro"
             .isLoggedIn()
             .then((isLoggedIn) => {
                 if (isLoggedIn) {
-                    setTimeout(() => {
-                        // Redirect to dashboard after 1 second
-                        window.location.href = "/dashboard";
-                    }, 1000);
+                    window.location.href = '/dashboard'; // Redirect to dashboard if logged in
 
                     if (loginSuccess) {
                         loginSuccess.textContent = 'You are already logged in. Redirecting to dashboard...';
@@ -86,7 +83,7 @@ import AniButton from "../components/Button.astro"
                     // Use navigate for SPA-like transitions if preferred
                     // navigate('/dashboard');
                     // Or use standard redirect
-                    window.location.href = '/dashboard';
+                    navigate('/dashboard');
                 })
                 .catch(error => {
                     console.error('Login failed:', error);
