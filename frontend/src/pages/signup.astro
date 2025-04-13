@@ -1,29 +1,26 @@
 ---
 import Layout from "../layouts/Layout.astro";
+import "../styles/style.css"
+import "../styles/loginpage.css"
+import AniButton from "../components/Button.astro"
 ---
 
 <Layout>
     <div>
-        <form id="signup-form">
-            <h2>Sign Up</h2>
+        <form id="login-form">
+            <h2>log in to chorus</h2>
             <div>
-                <label for="username">
-                    Username
-                </label>
-                <input id="username" type="text" placeholder="Username" required>
+                <input id="username" type="text" placeholder="username" required>
             </div>
             <div>
-                <label for="password">
-                    Password
-                </label>
-                <input id="password" type="password" placeholder="******************" required>
+                <input id="password" type="password" placeholder="password" required>
             </div>
             <div>
-                <button type="submit">
+                <AniButton type="submit">
                     Sign Up
-                </button>
+                </AniButton>
             </div>
-             <p id="signup-error"></p>
+             <p id="login-error"></p> <!-- Error message placeholder -->
         </form>
     </div>
 </Layout>
@@ -36,7 +33,7 @@ import Layout from "../layouts/Layout.astro";
         const form = event.target;
         const usernameInput = form.querySelector('#username');
         const passwordInput = form.querySelector('#password');
-        const errorElement = form.querySelector('#signup-error');
+        const errorElement = form.querySelector('#login-error');
 
         const username = usernameInput.value;
         const password = passwordInput.value;
