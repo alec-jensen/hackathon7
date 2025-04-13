@@ -34,6 +34,10 @@ class AddRepoRequest(BaseModel):  # Add this model
     repo_url: HttpUrl
 
 
+class RemoveRepoRequest(BaseModel):  # Add this model
+    repo_url: HttpUrl
+
+
 @router.post("/")
 async def create_project(
     request_data: CreateProjectRequest, current_user=Depends(get_current_user)
@@ -145,6 +149,40 @@ async def add_repo_to_project(
         {"project_id": project_id}, {"$push": {"repos": repo_url_str}}  # Use the string representation
     )
     return {"message": "Repository added successfully"}
+
+
+@router.delete("/{project_id}/remove-repo")
+async def remove_repo_from_project(
+    project_id: str, request_data: RemoveRepoRequest, current_user=Depends(get_current_user)
+):
+    project = await projects_collection.find_one({"project_id": project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Allow any member to remove a repo, similar to adding one
+    if current_user.user_id not in project["members"]:
+        raise HTTPException(
+            status_code=403, detail="Only project members can remove repositories"
+        )
+
+    repo_url_str = str(request_data.repo_url)
+
+    if "repos" not in project or repo_url_str not in project.get("repos", []):
+        raise HTTPException(
+            status_code=404, detail="Repository not found in the project"
+        )
+
+    result = await projects_collection.update_one(
+        {"project_id": project_id}, {"$pull": {"repos": repo_url_str}}
+    )
+
+    if result.modified_count == 1:
+        return {"message": "Repository removed successfully"}
+    else:
+        # This might happen if the repo was removed between the find and update operations
+        raise HTTPException(
+            status_code=404, detail="Repository not found in the project during update"
+        )
 
 
 @router.get("/{project_id}")

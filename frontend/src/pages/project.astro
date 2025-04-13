@@ -96,6 +96,7 @@ import Layout from "../layouts/Layout.astro";
     }
     
     let currentDataTimeRangeEnd: number | null = null;
+    let currentOwnerId: string | null = null; // Declare ownerId variable accessible to handlers
     
     function createEmotionGradient(
     emotionData: { time: number; emotion: string }[],
@@ -428,7 +429,7 @@ import Layout from "../layouts/Layout.astro";
         }
     }
 
-    async function loadMemberList(projectId: string) {
+    async function loadMemberList(projectId: string, ownerId: string | null) {
         const memberListElement = document.getElementById("member-list");
         memberListElement.innerHTML = "Loading members...";
 
@@ -467,17 +468,26 @@ import Layout from "../layouts/Layout.astro";
 
                 const usernameHeader = document.createElement("h4");
                 usernameHeader.textContent = user.username;
+
+                if (ownerId && user.user_id === ownerId) {
+                    const ownerLabel = document.createElement("span");
+                    ownerLabel.textContent = " (Owner)";
+                    ownerLabel.className = "owner-label";
+                    usernameHeader.appendChild(ownerLabel);
+                }
                 memberHeader.appendChild(usernameHeader);
 
-                const removeButton = document.createElement("button");
-                removeButton.textContent = "Remove";
-                removeButton.className = "remove-member-button danger-button";
-                removeButton.dataset.userId = user.user_id;
-                removeButton.dataset.username = user.username;
-                removeButton.addEventListener('click', () => {
-                    removeMemberHandler(projectId, user.user_id, user.username);
-                });
-                memberHeader.appendChild(removeButton);
+                if (ownerId && user.user_id !== ownerId) {
+                    const removeButton = document.createElement("button");
+                    removeButton.textContent = "Remove";
+                    removeButton.className = "remove-member-button danger-button";
+                    removeButton.dataset.userId = user.user_id;
+                    removeButton.dataset.username = user.username;
+                    removeButton.addEventListener('click', () => {
+                        removeMemberHandler(projectId, user.user_id, user.username);
+                    });
+                    memberHeader.appendChild(removeButton);
+                }
 
                 memberContainer.appendChild(memberHeader);
 
@@ -527,17 +537,28 @@ import Layout from "../layouts/Layout.astro";
             messageElement.textContent = `Successfully removed ${username}.`;
             messageElement.className = "message success";
 
-            await loadMemberList(projectId);
+            // Pass the currentOwnerId when reloading the list
+            await loadMemberList(projectId, currentOwnerId); 
 
             setTimeout(() => {
-                messageElement.textContent = "";
-                messageElement.className = "message";
+                // Clear message only if it hasn't changed
+                 if (messageElement.textContent === `Successfully removed ${username}.`) {
+                    messageElement.textContent = "";
+                    messageElement.className = "message";
+                }
             }, 3000);
 
         } catch (error: any) {
             console.error(`Error removing member ${username}:`, error);
             messageElement.textContent = `Failed to remove ${username}: ${error.message || 'Unknown error'}`;
             messageElement.className = "message error";
+             // Clear message only if it hasn't changed
+            setTimeout(() => {
+                 if (messageElement.textContent === `Failed to remove ${username}: ${error.message || 'Unknown error'}`) {
+                    messageElement.textContent = "";
+                    messageElement.className = "message";
+                }
+            }, 5000);
         }
     }
 
@@ -554,6 +575,7 @@ import Layout from "../layouts/Layout.astro";
         
         try {
             const project = await chorusAPI.getProjectDetails(projectId);
+            currentOwnerId = project.owner_id; // Assign to the outer scope variable
             projectNameElement.textContent = project.name;
             projectDescriptionElement.textContent =
             project.description || "No description available.";
@@ -579,7 +601,8 @@ import Layout from "../layouts/Layout.astro";
                 }
             }
             
-            await loadMemberList(projectId);
+            // Pass the fetched ownerId to loadMemberList
+            await loadMemberList(projectId, currentOwnerId); 
             
         } catch (error) {
             projectNameElement.textContent = "Error";
@@ -624,17 +647,28 @@ import Layout from "../layouts/Layout.astro";
             messageElement.className = "message success";
             usernameInput.value = "";
 
-            await loadMemberList(projectId);
+            // Pass the currentOwnerId when reloading the list
+            await loadMemberList(projectId, currentOwnerId); 
 
             setTimeout(() => {
-                messageElement.textContent = "";
-                messageElement.className = "message";
+                 // Clear message only if it hasn't changed
+                 if (messageElement.textContent === `Successfully added ${username}.`) {
+                    messageElement.textContent = "";
+                    messageElement.className = "message";
+                }
             }, 3000);
 
         } catch (error: any) {
             console.error("Error adding member:", error);
             messageElement.textContent = `Failed to add member: ${error.message || 'Unknown error'}`;
             messageElement.className = "message error";
+             // Clear message only if it hasn't changed
+            setTimeout(() => {
+                 if (messageElement.textContent === `Failed to add member: ${error.message || 'Unknown error'}`) {
+                    messageElement.textContent = "";
+                    messageElement.className = "message";
+                }
+            }, 5000);
         }
     }
 
@@ -653,8 +687,8 @@ import Layout from "../layouts/Layout.astro";
             messageElement.className = "message success";
 
             setTimeout(() => {
-                navigate("/");
-            }, 2000);
+                navigate("/dashboard");
+            }, 1000);
 
         } catch (error: any) {
             console.error("Error deleting project:", error);
@@ -665,6 +699,7 @@ import Layout from "../layouts/Layout.astro";
     }
     
     document.addEventListener("astro:page-load", () => {
+        currentOwnerId = null; // Reset ownerId on page load
         const urlParams = new URLSearchParams(window.location.search);
         const projectId = urlParams.get("project_id");
         const timeRangeFromUrl = urlParams.get("time_range");
@@ -1161,5 +1196,12 @@ import Layout from "../layouts/Layout.astro";
     .message.error {
         color: #a94442;
         font-weight: bold;
+    }
+
+    .owner-label {
+        font-size: 0.8em;
+        font-weight: normal;
+        color: #666;
+        margin-left: 5px;
     }
 </style>

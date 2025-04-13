@@ -267,6 +267,16 @@ export default class ChorusAPI {
     }
 
     /**
+     * Removes a repository from a project (using the stored token).
+     * @param {string} projectId - The ID of the project.
+     * @param {string} repoUrl - The URL of the Git repository.
+     * @returns {Promise<{message: string}>} Confirmation message.
+     */
+    async removeRepoFromProject(projectId, repoUrl) {
+        return this.request(`/projects/${projectId}/remove-repo`, 'DELETE', { repo_url: repoUrl }); // Token added automatically
+    }
+
+    /**
      * Gets the details of a specific project (using the stored token).
      * @param {string} projectId - The ID of the project.
      * @returns {Promise<{_id: string, project_id: string, name: string, owner_id: string, members: Array<string>, repos?: Array<string>}>} The project details.
