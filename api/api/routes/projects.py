@@ -276,10 +276,7 @@ async def get_project_average_mood(
                 "range": {
                     "step": 1,
                     "unit": "minute",
-                    "bounds": [
-                        {"$dateTrunc": start_minute_bound},
-                        {"$dateTrunc": end_minute_bound},
-                    ],
+                    "bounds": [start_minute_bound, end_minute_bound], # Use the variables directly
                 },
             }
         },
@@ -327,16 +324,19 @@ async def get_project_average_mood(
     ]
 
     # The result is now a list of interval averages
-    aggregation_result = await emotions_collection.aggregate(pipeline).to_list()
+    aggregation_result = await emotions_collection.aggregate(pipeline).to_list(length=None) # Use length=None
 
     # Format the timestamps in the result list
     for interval_data in aggregation_result:
-        if "interval_start" in interval_data and isinstance(
-            interval_data["interval_start"], datetime
-        ):
-            interval_data["interval_start"] = interval_data[
-                "interval_start"
-            ].isoformat()
+        # Convert interval datetime to ISO format string for JSON serialization
+        if "interval" in interval_data and isinstance(interval_data["interval"], datetime):
+            interval_data["interval"] = interval_data["interval"].isoformat()
+        # Ensure average emotions are present and handle potential None values if needed
+        if "average_emotions" in interval_data:
+            for key, value in interval_data["average_emotions"].items():
+                if value is None:
+                    # Decide how to handle None values, e.g., replace with 0 or keep as None
+                    interval_data["average_emotions"][key] = 0 # Example: replace None with 0
 
     # Return the list of interval data
     return aggregation_result
